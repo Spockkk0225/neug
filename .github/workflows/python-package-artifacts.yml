@@ -1,0 +1,52 @@
+name: Python Package Artifacts
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/python-package-artifacts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build_linux_x86_64:
+    name: Build Python package (Linux x86_64)
+    runs-on: ubuntu-24.04
+    env:
+      BUILD_TYPE: RELEASE
+      CIBW_BUILD: cp312-manylinux_x86_64
+      CI_INSTALL_EXTENSIONS: parquet;httpfs;pattern_matching;vector_search;fts
+      PYBIND11_FINDPYTHON: "OFF"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install cibuildwheel
+        run: python3 -m pip install cibuildwheel==3.4.0
+
+      - name: Build wheel with extensions
+        run: |
+          export CMAKE_BUILD_PARALLEL_LEVEL="$(nproc)"
+          python3 -m cibuildwheel ./tools/python_bind --output-dir wheelhouse
+
+      - name: Upload Python package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neug-python-linux-x86_64-cp312-${{ github.run_id }}-${{ github.run_attempt }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
