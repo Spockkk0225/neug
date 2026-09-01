@@ -408,3 +408,29 @@ def test_return_multiple_lists(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_primary_key_in_list_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:Item {id: 1}), (:Item {id: 2}), (:Item {id: 3});")
+
+    cases = [
+        ("[3, 1, 3, 999]", None),
+        ("$ids", {"ids": [3, 1, 3, 999]}),
+    ]
+    for collection, parameters in cases:
+        query = (
+            f"MATCH (item:Item) WHERE item.id IN {collection} "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        assert list(conn.execute(query, parameters=parameters)) == [[1], [3]]
+
+        result = conn.execute("EXPLAIN " + query, parameters=parameters)
+        list(result)
+        assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()

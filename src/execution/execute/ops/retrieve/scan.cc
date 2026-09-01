@@ -15,6 +15,8 @@
 
 #include "neug/execution/execute/ops/retrieve/scan.h"
 
+#include <set>
+
 #include "neug/common/columns/value_columns.h"
 #include "neug/common/columns/vertex_columns.h"
 #include "neug/execution/common/operators/retrieve/scan.h"
@@ -28,6 +30,18 @@ namespace execution {
 class OprTimer;
 
 namespace ops {
+
+static std::vector<Value> deduplicate_ids(std::vector<Value> values) {
+  std::set<Value> seen;
+  std::vector<Value> result;
+  result.reserve(values.size());
+  for (auto& value : values) {
+    if (!value.IsNull() && seen.insert(value).second) {
+      result.emplace_back(std::move(value));
+    }
+  }
+  return result;
+}
 
 class FilterOidsGPredOpr : public IOperator {
  public:
@@ -48,6 +62,9 @@ class FilterOidsGPredOpr : public IOperator {
 
     std::vector<Value> oid_values =
         ScanUtils::parse_ids_with_type(type, oids_, params);
+    if (oids_.cmp() == common::Logical::WITHIN) {
+      oid_values = deduplicate_ids(std::move(oid_values));
+    }
 
     if (pred_ == nullptr) {
       if (params_.tables.size() == 1 && oid_values.size() == 1) {

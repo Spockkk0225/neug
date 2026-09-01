@@ -39,6 +39,7 @@
 #include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
+#include "neug/compiler/function/list/functions/list_function_utils.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -205,21 +206,77 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVar(
   return result;
 }
 
+template <typename T, typename ArrayPB>
+static void appendPKCollectionValues(const compiler_impl::Value& value,
+                                     ArrayPB* array) {
+  for (auto i = 0u; i < value.childrenSize; ++i) {
+    const auto& child = *value.children[i];
+    if (!child.isNull()) {
+      array->add_item(child.getValue<T>());
+    }
+  }
+}
+
+static std::unique_ptr<::common::Value> convertCollectionLiteral(
+    const binder::LiteralExpression& literal) {
+  auto result = std::make_unique<::common::Value>();
+  const auto& value = literal.value;
+  auto elementType = function::ListFunctionUtils::getElementType(
+                         literal.getDataType())
+                         .id();
+  switch (elementType) {
+  case common::DataTypeId::kInt32:
+    appendPKCollectionValues<int32_t>(value, result->mutable_i32_array());
+    break;
+  case common::DataTypeId::kInt64:
+    appendPKCollectionValues<int64_t>(value, result->mutable_i64_array());
+    break;
+  case common::DataTypeId::kVarchar:
+    appendPKCollectionValues<std::string>(value,
+                                          result->mutable_str_array());
+    break;
+  default:
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported collection element type in primary key: " +
+        literal.getDataType().ToString());
+  }
+  return result;
+}
+
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     const std::string& key, const binder::Expression& expr) {
   auto keyPB = convertPropertyExpr(key);
-  auto valuePB = convert(expr, {})->operators(0);
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
-  if (valuePB.has_const_()) {
-    tripletPB->set_allocated_const_(valuePB.release_const_());
-  } else if (valuePB.has_param()) {
-    tripletPB->set_allocated_param(valuePB.release_param());
+
+  if (function::ListFunctionUtils::isListLike(expr.getDataType())) {
+    if (expr.expressionType == common::ExpressionType::LITERAL) {
+      tripletPB->set_allocated_const_(
+          convertCollectionLiteral(
+              expr.constCast<binder::LiteralExpression>())
+              .release());
+    } else if (expr.expressionType == common::ExpressionType::PARAMETER) {
+      auto valuePB = convert(expr, {})->operators(0);
+      tripletPB->set_allocated_param(valuePB.release_param());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Unsupported collection expression in primary key: " +
+          expr.toString());
+    }
+    tripletPB->set_cmp(::common::Logical::WITHIN);
   } else {
-    THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
-                                   expr.getDataType().ToString());
+    auto valuePB = convert(expr, {})->operators(0);
+    if (valuePB.has_const_()) {
+      tripletPB->set_allocated_const_(valuePB.release_const_());
+    } else if (valuePB.has_param()) {
+      tripletPB->set_allocated_param(valuePB.release_param());
+    } else {
+      THROW_EXCEPTION_WITH_FILE_LINE(
+          "Unsupported value type in primary key: " +
+          expr.getDataType().ToString());
+    }
+    tripletPB->set_cmp(::common::Logical::EQ);
   }
-  tripletPB->set_cmp(::common::Logical::EQ);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
   andPB->mutable_predicates()->AddAllocated(tripletPB.release());
   auto indexPB = std::make_unique<::algebra::IndexPredicate>();

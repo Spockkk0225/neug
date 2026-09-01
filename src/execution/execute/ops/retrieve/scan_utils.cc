@@ -103,9 +103,28 @@ std::vector<Value> parse_ids_from_idx_predicate(
   }
   return ret;
 }
+
+static const std::vector<Value>* getPKCollectionParam(
+    const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
+  if (!triplet.has_param()) {
+    return nullptr;
+  }
+  const auto& value = params.at(triplet.param().name());
+  if (value.type().id() == DataTypeId::kList) {
+    return &ListValue::GetChildren(value);
+  }
+  if (value.type().id() == DataTypeId::kArray) {
+    return &ArrayValue::GetChildren(value);
+  }
+  return nullptr;
+}
+
 std::vector<Value> ScanUtils::parse_ids_with_type(
     DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
     const ParamsMap& params) {
+  if (auto collectionValues = getPKCollectionParam(triplet, params)) {
+    return *collectionValues;
+  }
   switch (type) {
   case DataTypeId::kInt64: {
     return parse_ids_from_idx_predicate<int64_t>(triplet, params);
