@@ -221,9 +221,8 @@ static std::unique_ptr<::common::Value> convertCollectionLiteral(
     const binder::LiteralExpression& literal) {
   auto result = std::make_unique<::common::Value>();
   const auto& value = literal.value;
-  auto elementType = function::ListFunctionUtils::getElementType(
-                         literal.getDataType())
-                         .id();
+  auto elementType =
+      function::ListFunctionUtils::getElementType(literal.getDataType()).id();
   switch (elementType) {
   case common::DataTypeId::kInt32:
     appendPKCollectionValues<int32_t>(value, result->mutable_i32_array());
@@ -232,8 +231,7 @@ static std::unique_ptr<::common::Value> convertCollectionLiteral(
     appendPKCollectionValues<int64_t>(value, result->mutable_i64_array());
     break;
   case common::DataTypeId::kVarchar:
-    appendPKCollectionValues<std::string>(value,
-                                          result->mutable_str_array());
+    appendPKCollectionValues<std::string>(value, result->mutable_str_array());
     break;
   default:
     THROW_EXCEPTION_WITH_FILE_LINE(
@@ -252,8 +250,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   if (function::ListFunctionUtils::isListLike(expr.getDataType())) {
     if (expr.expressionType == common::ExpressionType::LITERAL) {
       tripletPB->set_allocated_const_(
-          convertCollectionLiteral(
-              expr.constCast<binder::LiteralExpression>())
+          convertCollectionLiteral(expr.constCast<binder::LiteralExpression>())
               .release());
     } else if (expr.expressionType == common::ExpressionType::PARAMETER) {
       auto valuePB = convert(expr, {})->operators(0);
@@ -271,9 +268,8 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     } else if (valuePB.has_param()) {
       tripletPB->set_allocated_param(valuePB.release_param());
     } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "Unsupported value type in primary key: " +
-          expr.getDataType().ToString());
+      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
+                                     expr.getDataType().ToString());
     }
     tripletPB->set_cmp(::common::Logical::EQ);
   }

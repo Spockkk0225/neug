@@ -178,9 +178,9 @@ static bool isConstantExpression(const std::shared_ptr<Expression> expression) {
   }
 }
 
-static bool isNodePrimaryKey(
-    const Expression& expression, const Expression& nodeID,
-    const std::vector<common::table_id_t>& tableIDs);
+static bool isNodePrimaryKey(const Expression& expression,
+                             const Expression& nodeID,
+                             const std::vector<common::table_id_t>& tableIDs);
 
 static bool tryRewriteNodePKIn(PredicateSet& predicates,
                                LogicalScanNodeTable& scan) {
@@ -211,9 +211,9 @@ static bool tryRewriteNodePKIn(PredicateSet& predicates,
       continue;
     }
 
-    auto elementType = function::ListFunctionUtils::getElementType(
-                           collection->getDataType())
-                           .id();
+    auto elementType =
+        function::ListFunctionUtils::getElementType(collection->getDataType())
+            .id();
     // Condition 4: IndexPredicate constants support these element types.
     if (elementType != DataTypeId::kInt32 &&
         elementType != DataTypeId::kInt64 &&
