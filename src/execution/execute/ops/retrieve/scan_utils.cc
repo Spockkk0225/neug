@@ -31,9 +31,6 @@ static std::vector<const common::Value*> parse_collection_expression(
     return values;
   }
   const auto& opr = expression.operators(0);
-  if (opr.has_const_()) {
-    return values;
-  }
   if (!opr.has_to_list() && !opr.has_to_array()) {
     THROW_NOT_SUPPORTED_EXCEPTION(
         "unsupported expression in primary key index predicate");
@@ -53,51 +50,42 @@ static std::vector<const common::Value*> parse_collection_expression(
 template <typename T>
 std::vector<Value> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
-  switch (triplet.value_case()) {
-  case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
+  const auto& expression = triplet.expression();
+  if (expression.operators_size() == 0) {
+    return {};
+  }
+  const auto& opr = expression.operators(0);
+  if (opr.has_const_()) {
     std::vector<Value> ret;
-    if (triplet.const_().item_case() == common::Value::kI32) {
+    if (opr.const_().item_case() == common::Value::kI32) {
       ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(triplet.const_().i32())));
-    } else if (triplet.const_().item_case() == common::Value::kI64) {
+          Value::CreateValue<T>(static_cast<T>(opr.const_().i32())));
+    } else if (opr.const_().item_case() == common::Value::kI64) {
       ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(triplet.const_().i64())));
-    } else if (triplet.const_().item_case() == common::Value::kU32) {
+          Value::CreateValue<T>(static_cast<T>(opr.const_().i64())));
+    } else if (opr.const_().item_case() == common::Value::kU32) {
       ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(triplet.const_().u32())));
-    } else if (triplet.const_().item_case() == common::Value::kU64) {
+          Value::CreateValue<T>(static_cast<T>(opr.const_().u32())));
+    } else if (opr.const_().item_case() == common::Value::kU64) {
       ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(triplet.const_().u64())));
-    } else if (triplet.const_().item_case() == common::Value::kI64Array) {
-      const auto& arr = triplet.const_().i64_array();
-      for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
-      }
-    } else if (triplet.const_().item_case() == common::Value::kI32Array) {
-      const auto& arr = triplet.const_().i32_array();
-      for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(arr.item(i))));
-      }
+          Value::CreateValue<T>(static_cast<T>(opr.const_().u64())));
     }
     return ret;
   }
-
-  case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
-    auto param_type = parse_from_ir_data_type(triplet.param().data_type());
+  if (opr.has_param()) {
+    auto param_type = parse_from_ir_data_type(opr.param().data_type());
 
     if (param_type.id() == DataTypeId::kInt32) {
       return std::vector<Value>{Value::CreateValue<T>(
-          params.at(triplet.param().name()).template GetValue<T>())};
+          params.at(opr.param().name()).template GetValue<T>())};
     } else if (param_type.id() == DataTypeId::kInt64) {
       return std::vector<Value>{Value::CreateValue<T>(
-          params.at(triplet.param().name()).template GetValue<T>())};
+          params.at(opr.param().name()).template GetValue<T>())};
     }
   }
-
-  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
+  if (opr.has_to_list() || opr.has_to_array()) {
     std::vector<Value> ret;
-    for (const auto* value :
-         parse_collection_expression(triplet.expression())) {
+    for (const auto* value : parse_collection_expression(expression)) {
       if (value->item_case() == common::Value::kI32) {
         ret.emplace_back(Value::CreateValue<T>(static_cast<T>(value->i32())));
       } else if (value->item_case() == common::Value::kI64) {
@@ -110,58 +98,51 @@ std::vector<Value> parse_ids_from_idx_predicate(
     }
     return ret;
   }
-  default:
-    break;
-  }
   return {};
 }
 
 std::vector<Value> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
   std::vector<Value> ret;
-  switch (triplet.value_case()) {
-  case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-    if (triplet.const_().item_case() == common::Value::kStr) {
-      ret.emplace_back(Value::STRING(triplet.const_().str()));
-
-    } else if (triplet.const_().item_case() == common::Value::kStrArray) {
-      const auto& arr = triplet.const_().str_array();
-      for (int i = 0; i < arr.item_size(); ++i) {
-        ret.emplace_back(Value::STRING(arr.item(i)));
-      }
+  const auto& expression = triplet.expression();
+  if (expression.operators_size() == 0) {
+    return ret;
+  }
+  const auto& opr = expression.operators(0);
+  if (opr.has_const_()) {
+    if (opr.const_().item_case() == common::Value::kStr) {
+      ret.emplace_back(Value::STRING(opr.const_().str()));
     }
     return ret;
   }
-
-  case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
-    auto param_type = parse_from_ir_data_type(triplet.param().data_type());
+  if (opr.has_param()) {
+    auto param_type = parse_from_ir_data_type(opr.param().data_type());
 
     if (param_type.id() == DataTypeId::kVarchar) {
-      ret.emplace_back(params.at(triplet.param().name()));
+      ret.emplace_back(params.at(opr.param().name()));
       return ret;
     }
   }
-  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
-    for (const auto* value :
-         parse_collection_expression(triplet.expression())) {
+  if (opr.has_to_list() || opr.has_to_array()) {
+    for (const auto* value : parse_collection_expression(expression)) {
       if (value->item_case() == common::Value::kStr) {
         ret.emplace_back(Value::STRING(value->str()));
       }
     }
     return ret;
   }
-  default:
-    break;
-  }
   return ret;
 }
 
 static const std::vector<Value>* get_pk_collection_param(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
-  if (!triplet.has_param()) {
+  if (!triplet.has_expression() ||
+      triplet.expression().operators_size() != 1 ||
+      !triplet.expression().operators(0).has_param()) {
     return nullptr;
   }
-  const auto& value = params.at(triplet.param().name());
+  const auto& param = triplet.expression().operators(0).param();
+  const auto& value = params.at(param.name());
   const auto type = value.type().id();
   if (type == DataTypeId::kList) {
     return &ListValue::GetChildren(value);
@@ -231,16 +212,9 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
     return false;
   }
 
-  switch (triplet.value_case()) {
-  case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
-  } break;
-  case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
-  } break;
-  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
-  } break;
-  default: {
+  if (!triplet.has_expression() ||
+      triplet.expression().operators_size() == 0) {
     return false;
-  } break;
   }
 
   return true;

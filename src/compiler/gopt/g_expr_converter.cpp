@@ -212,32 +212,13 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
 
-  if (compare == ::common::Logical::WITHIN) {
-    if (expr.expressionType == common::ExpressionType::LITERAL) {
-      tripletPB->set_allocated_expression(convert(expr, {}).release());
-    } else if (expr.expressionType == common::ExpressionType::PARAMETER) {
-      auto valuePB = convert(expr, {})->operators(0);
-      tripletPB->set_allocated_param(valuePB.release_param());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE(
-          "Unsupported collection expression in primary key: " +
-          expr.toString());
-    }
-  } else if (compare == ::common::Logical::EQ) {
-    auto valuePB = convert(expr, {})->operators(0);
-    if (valuePB.has_const_()) {
-      tripletPB->set_allocated_const_(valuePB.release_const_());
-    } else if (valuePB.has_param()) {
-      tripletPB->set_allocated_param(valuePB.release_param());
-    } else {
-      THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
-                                     expr.getDataType().ToString());
-    }
-  } else {
+  if (compare != ::common::Logical::WITHIN &&
+      compare != ::common::Logical::EQ) {
     THROW_EXCEPTION_WITH_FILE_LINE(
         "Unsupported comparison operator in primary key: " +
         ::common::Logical_Name(compare));
   }
+  tripletPB->set_allocated_expression(convert(expr, {}).release());
   tripletPB->set_cmp(compare);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
   andPB->mutable_predicates()->AddAllocated(tripletPB.release());
