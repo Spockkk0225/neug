@@ -55,20 +55,24 @@ std::vector<Value> parse_ids_from_idx_predicate(
     return {};
   }
   const auto& opr = expression.operators(0);
-  if (opr.has_const_()) {
+  if (triplet.expression().operators(0).has_const_()) {
     std::vector<Value> ret;
-    if (opr.const_().item_case() == common::Value::kI32) {
-      ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(opr.const_().i32())));
-    } else if (opr.const_().item_case() == common::Value::kI64) {
-      ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(opr.const_().i64())));
-    } else if (opr.const_().item_case() == common::Value::kU32) {
-      ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(opr.const_().u32())));
-    } else if (opr.const_().item_case() == common::Value::kU64) {
-      ret.emplace_back(
-          Value::CreateValue<T>(static_cast<T>(opr.const_().u64())));
+    if (triplet.expression().operators(0).const_().item_case() ==
+        common::Value::kI32) {
+      ret.emplace_back(Value::CreateValue<T>(
+          static_cast<T>(triplet.expression().operators(0).const_().i32())));
+    } else if (triplet.expression().operators(0).const_().item_case() ==
+               common::Value::kI64) {
+      ret.emplace_back(Value::CreateValue<T>(
+          static_cast<T>(triplet.expression().operators(0).const_().i64())));
+    } else if (triplet.expression().operators(0).const_().item_case() ==
+               common::Value::kU32) {
+      ret.emplace_back(Value::CreateValue<T>(
+          static_cast<T>(triplet.expression().operators(0).const_().u32())));
+    } else if (triplet.expression().operators(0).const_().item_case() ==
+               common::Value::kU64) {
+      ret.emplace_back(Value::CreateValue<T>(
+          static_cast<T>(triplet.expression().operators(0).const_().u64())));
     }
     return ret;
   }
@@ -136,8 +140,7 @@ std::vector<Value> parse_ids_from_idx_predicate(
 
 static const std::vector<Value>* get_pk_collection_param(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
-  if (!triplet.has_expression() ||
-      triplet.expression().operators_size() != 1 ||
+  if (!triplet.has_expression() || triplet.expression().operators_size() != 1 ||
       !triplet.expression().operators(0).has_param()) {
     return nullptr;
   }
@@ -212,8 +215,7 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
     return false;
   }
 
-  if (!triplet.has_expression() ||
-      triplet.expression().operators_size() == 0) {
+  if (!triplet.has_expression() || triplet.expression().operators_size() == 0) {
     return false;
   }
 
