@@ -196,11 +196,14 @@ message IndexPredicate {
   message Triplet {
     common.Property key = 1;
     oneof value {
+         // Deprecated: use expression instead.
          common.Value const = 2;
+         // Deprecated: use expression instead.
          common.DynamicParam param = 3;
+         common.Expression expression = 4;
     }
     // TODO(longbin) More comparators (gt, ge, lt, le, ne) other than equivalence (eq or within) may be required
-    common.Logical cmp = 4;
+    common.Logical cmp = 5;
   }
   // A collection of `Triplet` that forms a logical **AND** of all `Predicate`s.
   message AndPredicate {

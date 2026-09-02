@@ -24,6 +24,32 @@ namespace neug {
 namespace execution {
 namespace ops {
 
+static std::vector<const common::Value*> parse_collection_expression(
+    const common::Expression& expression) {
+  std::vector<const common::Value*> values;
+  if (expression.operators_size() != 1) {
+    return values;
+  }
+  const auto& opr = expression.operators(0);
+  if (opr.has_const_()) {
+    return values;
+  }
+  if (!opr.has_to_list() && !opr.has_to_array()) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "unsupported expression in primary key index predicate");
+  }
+  const auto& fields =
+      opr.has_to_list() ? opr.to_list().fields() : opr.to_array().fields();
+  for (const auto& field : fields) {
+    if (field.operators_size() != 1 || !field.operators(0).has_const_()) {
+      THROW_NOT_SUPPORTED_EXCEPTION(
+          "primary key collection elements must be constants");
+    }
+    values.emplace_back(&field.operators(0).const_());
+  }
+  return values;
+}
+
 template <typename T>
 std::vector<Value> parse_ids_from_idx_predicate(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
@@ -67,6 +93,23 @@ std::vector<Value> parse_ids_from_idx_predicate(
           params.at(triplet.param().name()).template GetValue<T>())};
     }
   }
+
+  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
+    std::vector<Value> ret;
+    for (const auto* value :
+         parse_collection_expression(triplet.expression())) {
+      if (value->item_case() == common::Value::kI32) {
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(value->i32())));
+      } else if (value->item_case() == common::Value::kI64) {
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(value->i64())));
+      } else if (value->item_case() == common::Value::kU32) {
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(value->u32())));
+      } else if (value->item_case() == common::Value::kU64) {
+        ret.emplace_back(Value::CreateValue<T>(static_cast<T>(value->u64())));
+      }
+    }
+    return ret;
+  }
   default:
     break;
   }
@@ -97,6 +140,15 @@ std::vector<Value> parse_ids_from_idx_predicate(
       ret.emplace_back(params.at(triplet.param().name()));
       return ret;
     }
+  }
+  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
+    for (const auto* value :
+         parse_collection_expression(triplet.expression())) {
+      if (value->item_case() == common::Value::kStr) {
+        ret.emplace_back(Value::STRING(value->str()));
+      }
+    }
+    return ret;
   }
   default:
     break;
@@ -183,6 +235,8 @@ bool ScanUtils::check_idx_predicate(const physical::Scan& scan_opr) {
   case algebra::IndexPredicate_Triplet::ValueCase::kConst: {
   } break;
   case algebra::IndexPredicate_Triplet::ValueCase::kParam: {
+  } break;
+  case algebra::IndexPredicate_Triplet::ValueCase::kExpression: {
   } break;
   default: {
     return false;

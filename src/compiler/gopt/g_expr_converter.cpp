@@ -39,7 +39,6 @@
 #include "neug/compiler/common/value_converter.h"
 #include "neug/compiler/function/arithmetic/vector_arithmetic_functions.h"
 #include "neug/compiler/function/cast/vector_cast_functions.h"
-#include "neug/compiler/function/list/functions/list_function_utils.h"
 #include "neug/compiler/function/neug_scalar_function.h"
 #include "neug/compiler/function/struct/vector_struct_functions.h"
 #include "neug/compiler/gopt/g_alias_manager.h"
@@ -206,45 +205,6 @@ std::unique_ptr<::common::Expression> GExprConverter::convertVar(
   return result;
 }
 
-template <typename T, typename ArrayPB>
-static void appendPKCollectionValues(const compiler_impl::Value& value,
-                                     ArrayPB* array) {
-  for (auto i = 0u; i < value.childrenSize; ++i) {
-    const auto& child = *value.children[i];
-    if (!child.isNull()) {
-      array->add_item(child.getValue<T>());
-    }
-  }
-}
-
-static std::unique_ptr<::common::Value> convertCollectionLiteral(
-    const binder::LiteralExpression& literal) {
-  auto result = std::make_unique<::common::Value>();
-  const auto& value = literal.value;
-  if (value.isNull()) {
-    result->set_allocated_none(new ::common::None());
-    return result;
-  }
-  auto elementType =
-      function::ListFunctionUtils::getElementType(literal.getDataType()).id();
-  switch (elementType) {
-  case common::DataTypeId::kInt32:
-    appendPKCollectionValues<int32_t>(value, result->mutable_i32_array());
-    break;
-  case common::DataTypeId::kInt64:
-    appendPKCollectionValues<int64_t>(value, result->mutable_i64_array());
-    break;
-  case common::DataTypeId::kVarchar:
-    appendPKCollectionValues<std::string>(value, result->mutable_str_array());
-    break;
-  default:
-    THROW_EXCEPTION_WITH_FILE_LINE(
-        "Unsupported collection element type in primary key: " +
-        literal.getDataType().ToString());
-  }
-  return result;
-}
-
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
     const std::string& key, const binder::Expression& expr,
     ::common::Logical compare) {
@@ -254,9 +214,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
 
   if (compare == ::common::Logical::WITHIN) {
     if (expr.expressionType == common::ExpressionType::LITERAL) {
-      tripletPB->set_allocated_const_(
-          convertCollectionLiteral(expr.constCast<binder::LiteralExpression>())
-              .release());
+      tripletPB->set_allocated_expression(convert(expr, {}).release());
     } else if (expr.expressionType == common::ExpressionType::PARAMETER) {
       auto valuePB = convert(expr, {})->operators(0);
       tripletPB->set_allocated_param(valuePB.release_param());
