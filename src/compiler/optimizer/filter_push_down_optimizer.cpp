@@ -214,10 +214,20 @@ static bool tryRewriteNodePKIn(PredicateSet& predicates,
     auto elementType =
         function::ListFunctionUtils::getElementType(collection->getDataType())
             .id();
-    // Condition 4: IndexPredicate constants support these element types.
-    if (elementType != DataTypeId::kInt32 &&
-        elementType != DataTypeId::kInt64 &&
-        elementType != DataTypeId::kVarchar) {
+    // Condition 4: Literal collections support INT32, INT64, and STRING;
+    // parameter collections additionally support UINT32 and UINT64.
+    const auto supportsLiteral =
+        elementType == DataTypeId::kInt32 ||
+        elementType == DataTypeId::kInt64 ||
+        elementType == DataTypeId::kVarchar;
+    const auto supportsParameter =
+        supportsLiteral ||
+        elementType == DataTypeId::kUInt32 ||
+        elementType == DataTypeId::kUInt64;
+    if ((collection->expressionType == ExpressionType::LITERAL &&
+         !supportsLiteral) ||
+        (collection->expressionType == ExpressionType::PARAMETER &&
+         !supportsParameter)) {
       continue;
     }
 

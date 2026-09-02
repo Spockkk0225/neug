@@ -471,3 +471,39 @@ def test_primary_key_in_null_collection_uses_index(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_primary_key_in_unsigned_parameter_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+
+    for table, data_type in [("U32Item", "UINT32"), ("U64Item", "UINT64")]:
+        conn.execute(
+            f"CREATE NODE TABLE {table}(id {data_type}, PRIMARY KEY(id));"
+        )
+        conn.execute(
+            f"CREATE (:{table} {{id: 1}}), "
+            f"(:{table} {{id: 2}}), "
+            f"(:{table} {{id: 3}});"
+        )
+        literal_query = (
+            f"MATCH (item:{table}) WHERE item.id IN [3, 1, 3, 999] "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        assert list(conn.execute(literal_query)) == [[1], [3]]
+        result = conn.execute("EXPLAIN " + literal_query)
+        list(result)
+        assert "ScanWithGPredOpr" in result.get_profile_text()
+
+        query = (
+            f"MATCH (item:{table}) WHERE item.id IN $ids "
+            "RETURN item.id ORDER BY item.id;"
+        )
+        parameters = {"ids": [3, 1, 3, 999]}
+        assert list(conn.execute(query, parameters=parameters)) == [[1], [3]]
+        result = conn.execute("EXPLAIN " + query, parameters=parameters)
+        list(result)
+        assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()
