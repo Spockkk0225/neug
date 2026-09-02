@@ -432,5 +432,12 @@ def test_primary_key_in_list_uses_index(tmp_path):
         list(result)
         assert "FilterOidsGPredOpr" in result.get_profile_text()
 
+    query = (
+        "MATCH (item:Item) WHERE item.id IN $ids "
+        "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute("RETURN 1 IN NULL;")) == [[None]]
+    assert list(conn.execute(query, parameters={"ids": None})) == []
+
     conn.close()
     db.close()
