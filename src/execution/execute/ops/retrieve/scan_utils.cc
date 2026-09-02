@@ -111,11 +111,6 @@ static const std::vector<Value>* getPKCollectionParam(
   }
   const auto& value = params.at(triplet.param().name());
   const auto type = value.type().id();
-  if (value.IsNull() &&
-      (type == DataTypeId::kList || type == DataTypeId::kArray)) {
-    static const std::vector<Value> empty_collection;
-    return &empty_collection;
-  }
   if (type == DataTypeId::kList) {
     return &ListValue::GetChildren(value);
   }

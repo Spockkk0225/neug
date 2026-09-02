@@ -458,14 +458,23 @@ def test_primary_key_in_null_collection_uses_index(tmp_path):
     conn.execute("CREATE NODE TABLE Item(id INT64, PRIMARY KEY(id));")
     conn.execute("CREATE (:Item {id: 1}), (:Item {id: 2}), (:Item {id: 3});")
 
-    query = (
+    literal_query = (
+        "MATCH (item:Item) WHERE item.id IN NULL "
+        "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute(literal_query)) == []
+    result = conn.execute("EXPLAIN " + literal_query)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    parameter_query = (
         "MATCH (item:Item) WHERE item.id IN $ids "
         "RETURN item.id ORDER BY item.id;"
     )
     assert list(conn.execute("RETURN 1 IN NULL;")) == [[None]]
     parameters = {"ids": None}
-    assert list(conn.execute(query, parameters=parameters)) == []
-    result = conn.execute("EXPLAIN " + query, parameters=parameters)
+    assert list(conn.execute(parameter_query, parameters=parameters)) == []
+    result = conn.execute("EXPLAIN " + parameter_query, parameters=parameters)
     list(result)
     assert "FilterOidsGPredOpr" in result.get_profile_text()
 

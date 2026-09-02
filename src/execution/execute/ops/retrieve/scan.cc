@@ -73,6 +73,17 @@ class FilterOidsGPredOpr : public IOperator {
       neug::execution::OprTimer* timer) override {
     ctx = Context();
     ctx.append_chunk(DataChunk());
+    if ((oids_.has_const_() && oids_.const_().has_none()) ||
+        (oids_.has_param() && params.at(oids_.param().name()).IsNull())) {
+      static const std::vector<Value> no_oids;
+      auto empty_chunk = Scan::filter_oids(std::move(ctx.chunk(0)), graph,
+                                           params_, DummyPred(), no_oids);
+      if (!empty_chunk) {
+        return tl::make_unexpected(empty_chunk.error());
+      }
+      ctx.chunk(0) = std::move(*empty_chunk);
+      return ctx;
+    }
     DataTypeId type =
         std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
             .id();

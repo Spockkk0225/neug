@@ -221,6 +221,10 @@ static std::unique_ptr<::common::Value> convertCollectionLiteral(
     const binder::LiteralExpression& literal) {
   auto result = std::make_unique<::common::Value>();
   const auto& value = literal.value;
+  if (value.isNull()) {
+    result->set_allocated_none(new ::common::None());
+    return result;
+  }
   auto elementType =
       function::ListFunctionUtils::getElementType(literal.getDataType()).id();
   switch (elementType) {
