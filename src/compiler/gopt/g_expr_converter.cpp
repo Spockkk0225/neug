@@ -242,12 +242,13 @@ static std::unique_ptr<::common::Value> convertCollectionLiteral(
 }
 
 std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
-    const std::string& key, const binder::Expression& expr) {
+    const std::string& key, const binder::Expression& expr,
+    ::common::Logical compare) {
   auto keyPB = convertPropertyExpr(key);
   auto tripletPB = std::make_unique<::algebra::IndexPredicate_Triplet>();
   tripletPB->set_allocated_key(keyPB.release());
 
-  if (function::ListFunctionUtils::isListLike(expr.getDataType())) {
+  if (compare == ::common::Logical::WITHIN) {
     if (expr.expressionType == common::ExpressionType::LITERAL) {
       tripletPB->set_allocated_const_(
           convertCollectionLiteral(expr.constCast<binder::LiteralExpression>())
@@ -260,8 +261,7 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
           "Unsupported collection expression in primary key: " +
           expr.toString());
     }
-    tripletPB->set_cmp(::common::Logical::WITHIN);
-  } else {
+  } else if (compare == ::common::Logical::EQ) {
     auto valuePB = convert(expr, {})->operators(0);
     if (valuePB.has_const_()) {
       tripletPB->set_allocated_const_(valuePB.release_const_());
@@ -271,8 +271,12 @@ std::unique_ptr<::algebra::IndexPredicate> GExprConverter::convertPrimaryKey(
       THROW_EXCEPTION_WITH_FILE_LINE("Unsupported value type in primary key: " +
                                      expr.getDataType().ToString());
     }
-    tripletPB->set_cmp(::common::Logical::EQ);
+  } else {
+    THROW_EXCEPTION_WITH_FILE_LINE(
+        "Unsupported comparison operator in primary key: " +
+        ::common::Logical_Name(compare));
   }
+  tripletPB->set_cmp(compare);
   auto andPB = std::make_unique<::algebra::IndexPredicate_AndPredicate>();
   andPB->mutable_predicates()->AddAllocated(tripletPB.release());
   auto indexPB = std::make_unique<::algebra::IndexPredicate>();

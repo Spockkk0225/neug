@@ -232,7 +232,8 @@ static bool tryRewriteNodePKIn(PredicateSet& predicates,
     }
 
     scan.setScanType(LogicalScanNodeTableType::PRIMARY_KEY_SCAN);
-    scan.setExtraInfo(std::make_unique<PrimaryKeyScanInfo>(collection));
+    scan.setExtraInfo(std::make_unique<PrimaryKeyScanInfo>(
+        collection, ::common::Logical::WITHIN));
     scan.computeFlatSchema();
     predicates.nonEqualityPredicates.erase(
         predicates.nonEqualityPredicates.begin() + i);
@@ -253,7 +254,8 @@ FilterPushDownOptimizer::visitScanNodeTableReplace(
   if (primaryKeyEqualityComparison != nullptr) {
     auto rhs = primaryKeyEqualityComparison->getChild(1);
     if (isConstantExpression(rhs)) {
-      auto extraInfo = std::make_unique<PrimaryKeyScanInfo>(rhs);
+      auto extraInfo =
+          std::make_unique<PrimaryKeyScanInfo>(rhs, ::common::Logical::EQ);
       scan.setScanType(LogicalScanNodeTableType::PRIMARY_KEY_SCAN);
       scan.setExtraInfo(std::move(extraInfo));
       scan.computeFlatSchema();
