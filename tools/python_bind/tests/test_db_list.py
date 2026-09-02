@@ -507,3 +507,37 @@ def test_primary_key_in_unsigned_parameter_uses_index(tmp_path):
 
     conn.close()
     db.close()
+
+
+def test_primary_key_in_string_collection_uses_index(tmp_path):
+    db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
+    conn = db.connect()
+    conn.execute("CREATE NODE TABLE Item(id STRING, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE (:Item {id: 'a'}), (:Item {id: 'b'}), (:Item {id: 'c'});"
+    )
+
+    literal_query = (
+        "MATCH (item:Item) WHERE item.id IN ['c', 'a', 'c', 'missing'] "
+        "RETURN item.id ORDER BY item.id;"
+    )
+    assert list(conn.execute(literal_query)) == [["a"], ["c"]]
+    result = conn.execute("EXPLAIN " + literal_query)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    parameter_query = (
+        "MATCH (item:Item) WHERE item.id IN $ids "
+        "RETURN item.id ORDER BY item.id;"
+    )
+    parameters = {"ids": ["c", "a", "c", "missing"]}
+    assert list(conn.execute(parameter_query, parameters=parameters)) == [
+        ["a"],
+        ["c"],
+    ]
+    result = conn.execute("EXPLAIN " + parameter_query, parameters=parameters)
+    list(result)
+    assert "FilterOidsGPredOpr" in result.get_profile_text()
+
+    conn.close()
+    db.close()
