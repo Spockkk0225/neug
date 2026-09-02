@@ -459,8 +459,7 @@ def test_primary_key_in_null_collection_uses_index(tmp_path):
     conn.execute("CREATE (:Item {id: 1}), (:Item {id: 2}), (:Item {id: 3});")
 
     literal_query = (
-        "MATCH (item:Item) WHERE item.id IN NULL "
-        "RETURN item.id ORDER BY item.id;"
+        "MATCH (item:Item) WHERE item.id IN NULL " "RETURN item.id ORDER BY item.id;"
     )
     assert list(conn.execute(literal_query)) == []
     result = conn.execute("EXPLAIN " + literal_query)
@@ -468,8 +467,7 @@ def test_primary_key_in_null_collection_uses_index(tmp_path):
     assert "FilterOidsGPredOpr" in result.get_profile_text()
 
     parameter_query = (
-        "MATCH (item:Item) WHERE item.id IN $ids "
-        "RETURN item.id ORDER BY item.id;"
+        "MATCH (item:Item) WHERE item.id IN $ids " "RETURN item.id ORDER BY item.id;"
     )
     assert list(conn.execute("RETURN 1 IN NULL;")) == [[None]]
     parameters = {"ids": None}
@@ -487,9 +485,7 @@ def test_primary_key_in_unsigned_parameter_uses_index(tmp_path):
     conn = db.connect()
 
     for table, data_type in [("U32Item", "UINT32"), ("U64Item", "UINT64")]:
-        conn.execute(
-            f"CREATE NODE TABLE {table}(id {data_type}, PRIMARY KEY(id));"
-        )
+        conn.execute(f"CREATE NODE TABLE {table}(id {data_type}, PRIMARY KEY(id));")
         conn.execute(
             f"CREATE (:{table} {{id: 1}}), "
             f"(:{table} {{id: 2}}), "
@@ -522,9 +518,7 @@ def test_primary_key_in_string_collection_uses_index(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
     conn.execute("CREATE NODE TABLE Item(id STRING, PRIMARY KEY(id));")
-    conn.execute(
-        "CREATE (:Item {id: 'a'}), (:Item {id: 'b'}), (:Item {id: 'c'});"
-    )
+    conn.execute("CREATE (:Item {id: 'a'}), (:Item {id: 'b'}), (:Item {id: 'c'});")
 
     literal_query = (
         "MATCH (item:Item) WHERE item.id IN ['c', 'a', 'c', 'missing'] "
@@ -536,8 +530,7 @@ def test_primary_key_in_string_collection_uses_index(tmp_path):
     assert "FilterOidsGPredOpr" in result.get_profile_text()
 
     parameter_query = (
-        "MATCH (item:Item) WHERE item.id IN $ids "
-        "RETURN item.id ORDER BY item.id;"
+        "MATCH (item:Item) WHERE item.id IN $ids " "RETURN item.id ORDER BY item.id;"
     )
     parameters = {"ids": ["c", "a", "c", "missing"]}
     assert list(conn.execute(parameter_query, parameters=parameters)) == [
