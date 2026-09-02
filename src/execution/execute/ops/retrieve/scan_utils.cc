@@ -156,7 +156,7 @@ std::vector<Value> parse_ids_from_idx_predicate(
   return ret;
 }
 
-static const std::vector<Value>* getPKCollectionParam(
+static const std::vector<Value>* get_pk_collection_param(
     const algebra::IndexPredicate_Triplet& triplet, const ParamsMap& params) {
   if (!triplet.has_param()) {
     return nullptr;
@@ -175,7 +175,7 @@ static const std::vector<Value>* getPKCollectionParam(
 std::vector<Value> ScanUtils::parse_ids_with_type(
     DataTypeId type, const algebra::IndexPredicate_Triplet& triplet,
     const ParamsMap& params) {
-  if (auto collectionValues = getPKCollectionParam(triplet, params)) {
+  if (auto collectionValues = get_pk_collection_param(triplet, params)) {
     return *collectionValues;
   }
   switch (type) {
