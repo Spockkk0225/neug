@@ -85,12 +85,7 @@ class FilterOidsGPredOpr : public IOperator {
       ctx.chunk(0) = std::move(*empty_chunk);
       return ctx;
     }
-    DataTypeId type =
-        std::get<0>(graph.schema().get_vertex_primary_key(params_.tables[0])[0])
-            .id();
-
-    std::vector<Value> oid_values =
-        ScanUtils::parse_ids_with_type(type, oids_, params);
+    std::vector<Value> oid_values = ScanUtils::parse_ids(oids_, params);
     if (oids_.cmp() == common::Logical::WITHIN) {
       oid_values = deduplicate_ids(std::move(oid_values));
     }
