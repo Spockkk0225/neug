@@ -105,6 +105,19 @@ std::unique_ptr<::physical::PhysicalPlan> GQueryConvertor::convert(
   convertOperator(*plan.getLastOperator(), planPB.get());
   if (!skipSink) {
     auto sink = std::make_unique<::physical::Sink>();
+    auto lastOp = plan.getLastOperator();
+    if (lastOp->getOperatorType() == planner::LogicalOperatorType::UNION_ALL) {
+      auto* schema = lastOp->getSchema();
+      if (schema == nullptr) {
+        THROW_EXCEPTION_WITH_FILE_LINE(
+            "Cannot build UNION ALL physical plan: output schema is not set");
+      }
+      for (const auto& expr : schema->getExpressionsInScope()) {
+        auto tag = sink->add_tags();
+        tag->mutable_tag()->set_value(
+            aliasManager->getAliasId(expr->getUniqueName()));
+      }
+    }
     auto physicalOpr = std::make_unique<::physical::PhysicalOpr>();
     auto oprPB = std::make_unique<::physical::PhysicalOpr_Operator>();
     oprPB->set_allocated_sink(sink.release());
@@ -387,7 +400,9 @@ void GQueryConvertor::convertScan(const planner::LogicalScanNodeTable& scan,
   auto pkOpt = scan.getPrimaryKey(catalog);
   if (pkOpt.has_value()) {
     scanPB->set_allocated_idx_predicate(
-        exprConvertor->convertPrimaryKey(pkOpt->key, *pkOpt->value->key)
+        exprConvertor
+            ->convertPrimaryKey(pkOpt->key, *pkOpt->value->key,
+                                pkOpt->value->compare)
             .release());
   }
 
@@ -2366,9 +2381,17 @@ void GQueryConvertor::convertUnion(const planner::LogicalUnion& unionOp,
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Union operator should have at least one sub query");
     }
+    ++subQueryOffset;
+  }
+  const auto subQueryCount = unionOp.getNumChildren() - subQueryOffset;
+  if (subQueryCount != 2) {
+    THROW_NOT_SUPPORTED_EXCEPTION(
+        "UNION ALL currently supports exactly two branches; got " +
+        std::to_string(subQueryCount));
+  }
+  if (unionOp.getPreQuery()) {
     auto preQuery = unionOp.getChild(0);
     convertOperator(*preQuery, plan);
-    ++subQueryOffset;
   }
   auto unionPB = std::make_unique<::physical::Union>();
   for (auto pos = subQueryOffset; pos < unionOp.getNumChildren(); ++pos) {
