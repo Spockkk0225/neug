@@ -212,8 +212,7 @@ def test_unwind_null_list_property_produces_no_rows(empty_db):
     _, conn = empty_db
     conn.execute("CREATE NODE TABLE source(id INT64, PRIMARY KEY(id));")
     conn.execute(
-        "CREATE NODE TABLE container("
-        "id INT64, items INT64[], PRIMARY KEY(id));"
+        "CREATE NODE TABLE container(" "id INT64, items INT64[], PRIMARY KEY(id));"
     )
     conn.execute("CREATE REL TABLE has_container(FROM source TO container);")
     conn.execute(
