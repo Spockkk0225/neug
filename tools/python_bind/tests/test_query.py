@@ -144,6 +144,26 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
+def test_order_by_asc_null_last(empty_db):
+    """A null between values must not split ascending sorting into segments."""
+    _, conn = empty_db
+    result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value ASC;"
+    )
+    assert list(result) == [[1], [2], [3], [4], [None]]
+
+
+def test_order_by_desc_null_first(empty_db):
+    """Descending sorting must place null before all non-null values."""
+    _, conn = empty_db
+    result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value DESC;"
+    )
+    assert list(result) == [[None], [4], [3], [2], [1]]
+
+
 def test_result_getitem(modern_graph):
     conn = modern_graph
     res = conn.execute("MATCH (n) RETURN count(n);")
