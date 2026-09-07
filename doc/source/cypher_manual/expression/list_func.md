@@ -8,8 +8,27 @@ The currently supported list functions are summarized below.
 | --------------------------------- | -------------------------------------- | ------------------------------------ |
 | `list_append(list_like, element)` | Appends one element to a list or array | `RETURN list_append([1, 2], 3)`      |
 | `list_concat(left, right)`        | Concatenates two lists or arrays       | `RETURN list_concat([1, 2], [3, 4])` |
+| `list_contains(list, element)`    | Tests whether a list contains an element | `RETURN list_contains([1, 2], 2)`  |
+| `list_has(list, element)`         | Alias of `list_contains`               | `RETURN list_has([1, 2], 2)`         |
 
 The accepted argument types, return types, type inference rules, and behavior of each function are described in the corresponding sections below.
+
+## `list_contains` and `list_has`
+
+`list_contains(list, element)` tests whether `element` occurs in `list`.
+`list_has(list, element)` is an alias with identical behavior. Both functions
+use the same three-valued membership semantics as the [`IN` operator](list_op):
+an empty list returns `FALSE`; a definite match returns `TRUE`; and a missing
+match returns `NULL` rather than `FALSE` when the list contains a `NULL`
+element.
+
+```cypher
+RETURN list_contains(CAST([], 'INT64[]'), CAST(NULL, 'INT64'));
+// FALSE
+
+RETURN list_has(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2);
+// NULL
+```
 
 ## `list_append`
 

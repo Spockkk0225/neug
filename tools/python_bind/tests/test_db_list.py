@@ -179,6 +179,35 @@ def test_list_cast_contract(tmp_path):
     db.close()
 
 
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "CAST(null, 'INT64') IN CAST([], 'INT64[]')",
+        "list_contains(CAST([], 'INT64[]'), CAST(null, 'INT64'))",
+        "list_has(CAST([], 'INT64[]'), CAST(null, 'INT64'))",
+    ],
+)
+def test_null_membership_in_empty_list(empty_db, expression):
+    _, conn = empty_db
+    assert list(conn.execute(f"RETURN {expression};")) == [[False]]
+
+
+@pytest.mark.parametrize(
+    "expression",
+    [
+        "2 IN CAST([1, CAST(null, 'INT64'), 3], 'INT64[]')",
+        "list_contains(CAST([1, CAST(null, 'INT64'), 3], 'INT64[]'), 2)",
+        "list_has(CAST([1, CAST(null, 'INT64'), 3], 'INT64[]'), 2)",
+        "2 IN CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]')",
+        "list_contains(CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]'), 2)",
+        "list_has(CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]'), 2)",
+    ],
+)
+def test_no_match_with_null_element(empty_db, expression):
+    _, conn = empty_db
+    assert list(conn.execute(f"RETURN {expression};")) == [[None]]
+
+
 def test_list_preserves_null_elements_during_unwind(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
