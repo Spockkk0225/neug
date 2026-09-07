@@ -144,6 +144,55 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
+def test_return_distinct_preserves_null_row(empty_db):
+    """A null target ID and the real ID -1 are distinct projected rows."""
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute(
+        "CREATE (:source {id: 1, bucket: 5}), "
+        "(:source {id: 2, bucket: 5}), (:source {id: 3, bucket: 5}), "
+        "(:target {id: -1});"
+    )
+    conn.execute(
+        "MATCH (source:source), (target:target) "
+        "WHERE source.id = 1 AND target.id = -1 "
+        "CREATE (source)-[:links]->(target);"
+    )
+    # Verify the input includes both values and a duplicate null projection.
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN target.id, source.bucket;"
+        )
+    )
+    assert len(rows) == 3
+    assert rows.count([-1, 5]) == 1
+    assert rows.count([None, 5]) == 2
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN DISTINCT target.id;"
+        )
+    )
+    assert len(rows) == 2
+    assert {row[0] for row in rows} == {-1, None}
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN DISTINCT target.id, source.bucket;"
+        )
+    )
+    assert len(rows) == 2
+    assert {tuple(row) for row in rows} == {(-1, 5), (None, 5)}
+
+
 def test_order_by_asc_null_last(empty_db):
     """A null between values must not split ascending sorting into segments."""
     _, conn = empty_db
