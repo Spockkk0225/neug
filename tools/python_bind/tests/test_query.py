@@ -144,6 +144,24 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
+@pytest.mark.parametrize("aggregate", ["sum", "avg"])
+@pytest.mark.parametrize(
+    "values",
+    [
+        "CAST([1, 1, 2], 'INT64[]')",
+        "CAST([CAST(null, 'INT64'), CAST(null, 'INT64'), 1, 1, 2], 'INT64[]')",
+    ],
+)
+def test_distinct_aggregate_not_supported(empty_db, aggregate, values):
+    _, conn = empty_db
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute(f"UNWIND {values} AS value RETURN {aggregate}(DISTINCT value);")
+
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert f"{aggregate.upper()}(DISTINCT ...) is not supported" in message
+
+
 def test_return_distinct_preserves_null_row(empty_db):
     """A null target ID and the real ID -1 are distinct projected rows."""
     _, conn = empty_db
