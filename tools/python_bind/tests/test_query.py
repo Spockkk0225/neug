@@ -624,6 +624,16 @@ def test_dummy_scan():
     db.close()
 
 
+def test_simple_case_when_null(empty_db):
+    _, conn = empty_db
+    result = conn.execute(
+        "RETURN CASE null WHEN null THEN 'null value' "
+        "ELSE 'not matched' END, "
+        "CASE 1 WHEN null THEN 'null value' ELSE 'not matched' END;"
+    )
+    assert list(result) == [["null value", "not matched"]]
+
+
 @pytest.mark.skipif(not HAS_LDBC, reason="LDBC data not found")
 def test_case_expression():
     db = Database(db_path=LDBC_DIR, mode="r")
