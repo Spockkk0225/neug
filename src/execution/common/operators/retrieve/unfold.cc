@@ -83,6 +83,9 @@ void unfold_list_like(ContextChunk& chunk, int alias,
   sel_vec_t offsets;
   for (size_t i = 0; i < row_num; ++i) {
     Value val = key.eval_record(chunk.chunk(), i);
+    if (val.IsNull()) {
+      continue;
+    }
     const auto& children = getListLikeChildren(val);
     for (const auto& elem : children) {
       builder->push_back_elem(elem);

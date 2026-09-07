@@ -208,6 +208,44 @@ def test_no_match_with_null_element(empty_db, expression):
     assert list(conn.execute(f"RETURN {expression};")) == [[None]]
 
 
+def test_unwind_null_list_property_produces_no_rows(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, PRIMARY KEY(id));")
+    conn.execute(
+        "CREATE NODE TABLE container("
+        "id INT64, items INT64[], PRIMARY KEY(id));"
+    )
+    conn.execute("CREATE REL TABLE has_container(FROM source TO container);")
+    conn.execute(
+        "CREATE (:source {id: 1}), (:source {id: 2}), "
+        "(:container {id: 10, items: CAST([100, 200], 'INT64[]')});"
+    )
+    conn.execute(
+        "MATCH (source:source), (container:container) "
+        "WHERE source.id = 1 AND container.id = 10 "
+        "CREATE (source)-[:has_container]->(container);"
+    )
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:has_container]->(container:container) "
+            "RETURN source.id, container.items ORDER BY source.id;"
+        )
+    )
+    assert rows == [[1, [100, 200]], [2, None]]
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:has_container]->(container:container) "
+            "UNWIND container.items AS value "
+            "RETURN source.id, value ORDER BY source.id, value;"
+        )
+    )
+    assert rows == [[1, 100], [1, 200]]
+
+
 def test_list_preserves_null_elements_during_unwind(tmp_path):
     db = Database(db_path=str(tmp_path), mode="w", checkpoint_on_close=False)
     conn = db.connect()
