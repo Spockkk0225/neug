@@ -154,28 +154,51 @@ class BindedAndExpr : public VertexExprBase,
 
   Value eval_record(const DataChunk& chunk, size_t idx) const override {
     const auto& lhs_val = lhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
-    if (!lhs_val.IsTrue()) {
-      return lhs_val;
+    if (lhs_val.IsFalse()) {
+      return Value::BOOLEAN(false);
     }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto rhs_val = rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (rhs_val.IsFalse()) {
+      return Value::BOOLEAN(false);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(true);
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
     const auto& lhs_val =
         lhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
-    if (!lhs_val.IsTrue()) {
+    if (lhs_val.IsFalse()) {
       return Value::BOOLEAN(false);
     }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto rhs_val =
+        rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    if (rhs_val.IsFalse()) {
+      return Value::BOOLEAN(false);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(true);
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
                   const void* data_ptr) const override {
     const auto& lhs_val =
         lhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
-    if (!lhs_val.IsTrue()) {
+    if (lhs_val.IsFalse()) {
       return Value::BOOLEAN(false);
     }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    const auto rhs_val =
+        rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    if (rhs_val.IsFalse()) {
+      return Value::BOOLEAN(false);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(true);
   }
 
  private:
@@ -201,7 +224,14 @@ class BindedOrExpr : public VertexExprBase,
     if (lhs_val.IsTrue()) {
       return Value::BOOLEAN(true);
     }
-    return rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    const auto rhs_val = rhs_->Cast<RecordExprBase>().eval_record(chunk, idx);
+    if (rhs_val.IsTrue()) {
+      return Value::BOOLEAN(true);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(false);
   }
   Value eval_vertex(label_t v_label, vid_t v_id) const override {
     const auto& lhs_val =
@@ -210,7 +240,15 @@ class BindedOrExpr : public VertexExprBase,
     if (lhs_val.IsTrue()) {
       return Value::BOOLEAN(true);
     }
-    return rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    const auto rhs_val =
+        rhs_->Cast<VertexExprBase>().eval_vertex(v_label, v_id);
+    if (rhs_val.IsTrue()) {
+      return Value::BOOLEAN(true);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(false);
   }
 
   Value eval_edge(const LabelTriplet& label, vid_t src, vid_t dst,
@@ -221,7 +259,15 @@ class BindedOrExpr : public VertexExprBase,
     if (lhs_val.IsTrue()) {
       return Value::BOOLEAN(true);
     }
-    return rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    const auto rhs_val =
+        rhs_->Cast<EdgeExprBase>().eval_edge(label, src, dst, data_ptr);
+    if (rhs_val.IsTrue()) {
+      return Value::BOOLEAN(true);
+    }
+    if (lhs_val.IsNull() || rhs_val.IsNull()) {
+      return Value(DataType::BOOLEAN);
+    }
+    return Value::BOOLEAN(false);
   }
 
  private:
