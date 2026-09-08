@@ -19,6 +19,13 @@ RETURN UPPER('Alice'), LOWER('Alice'), REVERSE('Alice');
 // 'ALICE', 'alice', 'ecilA'
 ```
 
+String transformation functions return `NULL` when the input is `NULL`.
+
+```cypher
+RETURN UPPER(NULL), LOWER(NULL), REVERSE(NULL);
+// NULL, NULL, NULL
+```
+
 ## String Predicates
 
 String predicates compare a string with a literal pattern and return a Boolean

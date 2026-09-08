@@ -925,6 +925,13 @@ def test_reverse(modern_graph):
         ), f"Expected {expected} for {original}, got {reversed_str}"
 
 
+def test_string_functions_with_null(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN UPPER(null), LOWER(null), REVERSE(null);")) == [
+        [None, None, None]
+    ]
+
+
 def test_starts_with_null_right_operand(empty_db):
     _, conn = empty_db
     assert list(conn.execute("RETURN 'Alice' STARTS WITH null;")) == [[None]]
