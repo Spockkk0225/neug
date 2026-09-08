@@ -144,6 +144,73 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
+@pytest.mark.parametrize("aggregate", ["sum", "avg"])
+@pytest.mark.parametrize(
+    "values",
+    [
+        "CAST([1, 1, 2], 'INT64[]')",
+        "CAST([CAST(null, 'INT64'), CAST(null, 'INT64'), 1, 1, 2], 'INT64[]')",
+    ],
+)
+def test_distinct_aggregate_not_supported(empty_db, aggregate, values):
+    _, conn = empty_db
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute(f"UNWIND {values} AS value RETURN {aggregate}(DISTINCT value);")
+
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert f"{aggregate.upper()}(DISTINCT ...) is not supported" in message
+
+
+def test_return_distinct_preserves_null_row(empty_db):
+    """A null target ID and the real ID -1 are distinct projected rows."""
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE NODE TABLE target(id INT32, PRIMARY KEY(id));")
+    conn.execute("CREATE REL TABLE links(FROM source TO target);")
+    conn.execute(
+        "CREATE (:source {id: 1, bucket: 5}), "
+        "(:source {id: 2, bucket: 5}), (:source {id: 3, bucket: 5}), "
+        "(:target {id: -1});"
+    )
+    conn.execute(
+        "MATCH (source:source), (target:target) "
+        "WHERE source.id = 1 AND target.id = -1 "
+        "CREATE (source)-[:links]->(target);"
+    )
+    # Verify the input includes both values and a duplicate null projection.
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN target.id, source.bucket;"
+        )
+    )
+    assert len(rows) == 3
+    assert rows.count([-1, 5]) == 1
+    assert rows.count([None, 5]) == 2
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN DISTINCT target.id;"
+        )
+    )
+    assert len(rows) == 2
+    assert {row[0] for row in rows} == {-1, None}
+
+    rows = list(
+        conn.execute(
+            "MATCH (source:source) "
+            "OPTIONAL MATCH (source)-[:links]->(target:target) "
+            "RETURN DISTINCT target.id, source.bucket;"
+        )
+    )
+    assert len(rows) == 2
+    assert {tuple(row) for row in rows} == {(-1, 5), (None, 5)}
+
+
 def test_result_getitem(modern_graph):
     conn = modern_graph
     res = conn.execute("MATCH (n) RETURN count(n);")
