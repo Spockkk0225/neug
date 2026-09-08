@@ -144,6 +144,22 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
+def test_order_by_null_placement(empty_db):
+    """Null sorts last for ASC and first for DESC."""
+    _, conn = empty_db
+    asc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value ASC;"
+    )
+    assert list(asc_result) == [[1], [2], [3], [4], [None]]
+
+    desc_result = conn.execute(
+        "UNWIND CAST([3, 1, CAST(null, 'INT64'), 4, 2], 'INT64[]') AS value "
+        "RETURN value ORDER BY value DESC;"
+    )
+    assert list(desc_result) == [[None], [4], [3], [2], [1]]
+
+
 def test_result_getitem(modern_graph):
     conn = modern_graph
     res = conn.execute("MATCH (n) RETURN count(n);")
