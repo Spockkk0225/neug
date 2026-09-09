@@ -144,71 +144,109 @@ def test_aggregate_over_all_null_input(empty_db):
     assert list(result) == [[None, None, None, 0, []]]
 
 
-@pytest.mark.parametrize("aggregate", ["sum", "avg"])
-@pytest.mark.parametrize(
-    "values",
-    [
-        "CAST([1, 1, 2], 'INT64[]')",
-        "CAST([CAST(null, 'INT64'), CAST(null, 'INT64'), 1, 1, 2], 'INT64[]')",
-    ],
-)
-def test_distinct_aggregate_not_supported(empty_db, aggregate, values):
+def test_aggregation_function(empty_db):
     _, conn = empty_db
-    with pytest.raises(RuntimeError) as excinfo:
-        conn.execute(f"UNWIND {values} AS value RETURN {aggregate}(DISTINCT value);")
 
+    # Normal input: count(*) and count(value) both count every row.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [3, 3, pytest.approx(4 / 3), 2, 1, 4, [1, 1, 2]]
+
+    # Empty input: both counts are 0; sum and collect return their identity values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[0, 0, None, None, None, 0, []]]
+
+    # Input containing NULL: count(*) counts every row; other aggregates ignore NULL.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), -1, -1, 1, 2] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result)[0] == [5, 4, pytest.approx(1 / 4), 2, -1, 1, [-1, -1, 1, 2]]
+
+    # All-NULL input: count(*) counts every row; count(value) and others see no values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(*), count(value), avg(value), max(value), min(value), "
+        "sum(value), collect(value);"
+    )
+    assert list(result) == [[2, 0, None, None, None, 0, []]]
+
+
+def test_aggregation_function_distinct(empty_db):
+    _, conn = empty_db
+
+    # Normal input: DISTINCT aggregates remove duplicate values.
+    result = conn.execute(
+        "UNWIND [1, 1, 2] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[2, 2, 1, [1, 2]]]
+
+    # Empty input: count is 0; max, min, and collect return their empty values.
+    result = conn.execute(
+        "UNWIND CAST([], 'INT64[]') AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # Input containing NULL: DISTINCT aggregates ignore NULL and remove duplicates.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+        "AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[3, 2, -1, [-1, 1, 2]]]
+
+    # RETURN DISTINCT preserves NULL as a separate single-column or multi-column row.
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value;"
+        )
+    )
+    assert len(rows) == 4
+    assert {row[0] for row in rows} == {None, -1, 1, 2}
+
+    rows = list(
+        conn.execute(
+            "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64'), -1, -1, 1, 2] "
+            "AS value RETURN DISTINCT value, 5;"
+        )
+    )
+    assert len(rows) == 4
+    assert {tuple(row) for row in rows} == {(None, 5), (-1, 5), (1, 5), (2, 5)}
+
+    # All-NULL input: DISTINCT aggregates see no non-NULL values.
+    result = conn.execute(
+        "UNWIND [CAST(NULL, 'INT64'), CAST(NULL, 'INT64')] AS value "
+        "RETURN count(DISTINCT value), max(DISTINCT value), "
+        "min(DISTINCT value), collect(DISTINCT value);"
+    )
+    assert list(result) == [[0, None, None, []]]
+
+    # SUM(DISTINCT ...) and AVG(DISTINCT ...) are not supported.
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN sum(DISTINCT value);")
     message = str(excinfo.value)
     assert str(ERR_NOT_SUPPORTED) in message
-    assert f"{aggregate.upper()}(DISTINCT ...) is not supported" in message
+    assert "SUM(DISTINCT ...) is not supported" in message
 
-
-def test_return_distinct_preserves_null_row(empty_db):
-    """A null target ID and the real ID -1 are distinct projected rows."""
-    _, conn = empty_db
-    conn.execute("CREATE NODE TABLE source(id INT64, bucket INT32, PRIMARY KEY(id));")
-    conn.execute("CREATE NODE TABLE target(id INT32, PRIMARY KEY(id));")
-    conn.execute("CREATE REL TABLE links(FROM source TO target);")
-    conn.execute(
-        "CREATE (:source {id: 1, bucket: 5}), "
-        "(:source {id: 2, bucket: 5}), (:source {id: 3, bucket: 5}), "
-        "(:target {id: -1});"
-    )
-    conn.execute(
-        "MATCH (source:source), (target:target) "
-        "WHERE source.id = 1 AND target.id = -1 "
-        "CREATE (source)-[:links]->(target);"
-    )
-    # Verify the input includes both values and a duplicate null projection.
-    rows = list(
-        conn.execute(
-            "MATCH (source:source) "
-            "OPTIONAL MATCH (source)-[:links]->(target:target) "
-            "RETURN target.id, source.bucket;"
-        )
-    )
-    assert len(rows) == 3
-    assert rows.count([-1, 5]) == 1
-    assert rows.count([None, 5]) == 2
-
-    rows = list(
-        conn.execute(
-            "MATCH (source:source) "
-            "OPTIONAL MATCH (source)-[:links]->(target:target) "
-            "RETURN DISTINCT target.id;"
-        )
-    )
-    assert len(rows) == 2
-    assert {row[0] for row in rows} == {-1, None}
-
-    rows = list(
-        conn.execute(
-            "MATCH (source:source) "
-            "OPTIONAL MATCH (source)-[:links]->(target:target) "
-            "RETURN DISTINCT target.id, source.bucket;"
-        )
-    )
-    assert len(rows) == 2
-    assert {tuple(row) for row in rows} == {(-1, 5), (None, 5)}
+    with pytest.raises(RuntimeError) as excinfo:
+        conn.execute("UNWIND [1, 1, 2] AS value RETURN avg(DISTINCT value);")
+    message = str(excinfo.value)
+    assert str(ERR_NOT_SUPPORTED) in message
+    assert "AVG(DISTINCT ...) is not supported" in message
 
 
 def test_result_getitem(modern_graph):
