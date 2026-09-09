@@ -954,6 +954,28 @@ def test_reverse(modern_graph):
         ), f"Expected {expected} for {original}, got {reversed_str}"
 
 
+def test_string_functions_with_null(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN UPPER(null), LOWER(null), REVERSE(null);")) == [
+        [None, None, None]
+    ]
+
+
+def test_starts_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' STARTS WITH null;")) == [[None]]
+
+
+def test_ends_with_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' ENDS WITH null;")) == [[None]]
+
+
+def test_contains_null_right_operand(empty_db):
+    _, conn = empty_db
+    assert list(conn.execute("RETURN 'Alice' CONTAINS null;")) == [[None]]
+
+
 def test_starts_with(modern_graph):
     conn = modern_graph
     # todo: property value of `age` is null, engine will fail if the tuple contains null value
