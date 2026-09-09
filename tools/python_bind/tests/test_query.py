@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import datetime
 import logging
 import shutil
 
@@ -366,7 +367,6 @@ def test_no_existing_property(tinysnb):
 def test_return_date(tinysnb):
     conn = tinysnb
     query = "MATCH (n) return n.birthdate limit 1"
-    import datetime
 
     expected = [[datetime.date(1900, 1, 1)]]
     result = conn.execute(query)
@@ -1049,6 +1049,71 @@ def test_create_interval(modern_graph):
     res = conn.execute("RETURN INTERVAL('5 DAY')")
     for record in res:
         assert record[0] == "5 days", f"Expected value '5 days', got {record[0]}"
+
+
+@pytest.mark.parametrize(
+    "left, right",
+    [
+        ("1 year", "12 months"),
+        ("1 month", "30 days"),
+        ("1 day", "24 hours"),
+        ("1 hour", "60 minutes"),
+        ("1 minute", "60 seconds"),
+        ("1 second", "1000 milliseconds"),
+        ("1 millisecond", "1000 us"),
+        ("1 year", "8640 hours"),
+    ],
+)
+def test_interval_fixed_base_unit_conversion(empty_db, left, right):
+    _, conn = empty_db
+
+    result = conn.execute(
+        f"RETURN interval('{left}') = interval('{right}');",
+        access_mode="read",
+    )
+
+    assert list(result) == [[True]]
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("interval('1 year') = interval('8640 hours')", True),
+        ("interval('1 year') > interval('8639 hours')", True),
+        ("interval('1 year') < interval('8641 hours')", True),
+        ("interval('1 month') > interval('29 days 23 hours')", True),
+        ("interval('1 day') < interval('1441 minutes')", True),
+    ],
+)
+def test_interval_comparison_uses_fixed_base_normalization(
+    empty_db, expression, expected
+):
+    _, conn = empty_db
+
+    result = conn.execute(f"RETURN {expression};", access_mode="read")
+
+    assert list(result) == [[expected]]
+
+
+def test_date_interval_arithmetic_uses_calendar_months(empty_db):
+    _, conn = empty_db
+
+    result = conn.execute(
+        "RETURN date('2024-02-01') + interval('1 month'), "
+        "date('2024-02-01') + interval('30 days'), "
+        "date('2024-03-31') - interval('1 month'), "
+        "date('2024-03-31') - interval('30 days');",
+        access_mode="read",
+    )
+
+    assert list(result) == [
+        [
+            datetime.date(2024, 3, 1),
+            datetime.date(2024, 3, 2),
+            datetime.date(2024, 2, 29),
+            datetime.date(2024, 3, 1),
+        ]
+    ]
 
 
 # ---------------------------------------------------------------------------

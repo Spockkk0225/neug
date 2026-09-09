@@ -107,6 +107,13 @@ NeuG uses fixed-base normalization when comparing `INTERVAL` values:
 - 1 second = 1,000 milliseconds
 - 1 millisecond = 1,000 microseconds
 
+For example, 1 year = 12 * 30 * 24 hours:
+
+```cypher
+RETURN interval('1 year') = interval('8640 hours') AS same_interval;
+// true
+```
+
 Fixed normalization ensures consistent calculations within the `INTERVAL` type,
 but calculations involving both `DATE` and `INTERVAL` can produce different
 results for otherwise equivalent intervals:
