@@ -229,8 +229,12 @@ def test_list_has_null_semantics(empty_db):
 
 def test_in_null_semantics_with_variables(empty_db):
     _, conn = empty_db
-    conn.execute("CREATE NODE TABLE MembershipCase(id INT64, needle INT64, PRIMARY KEY(id));")
-    conn.execute("CREATE (:MembershipCase {id: 1, needle: 1}), (:MembershipCase {id: 2, needle: 2}), (:MembershipCase {id: 3, needle: NULL});")
+    conn.execute(
+        "CREATE NODE TABLE MembershipCase(id INT64, needle INT64, PRIMARY KEY(id));"
+    )
+    conn.execute(
+        "CREATE (:MembershipCase {id: 1, needle: 1}), (:MembershipCase {id: 2, needle: 2}), (:MembershipCase {id: 3, needle: NULL});"
+    )
     cases = [
         (1, "NULL", None),
         (3, "NULL", None),
@@ -242,7 +246,11 @@ def test_in_null_semantics_with_variables(empty_db):
         (2, "[1, 3]", False),
     ]
     for case_id, values, expected in cases:
-        rows = list(conn.execute(f"MATCH (c:MembershipCase) WHERE c.id = {case_id} RETURN c.needle IN {values};"))
+        rows = list(
+            conn.execute(
+                f"MATCH (c:MembershipCase) WHERE c.id = {case_id} RETURN c.needle IN {values};"
+            )
+        )
         assert rows == [[expected]]
 
 
