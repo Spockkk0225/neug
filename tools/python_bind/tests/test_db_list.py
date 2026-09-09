@@ -40,9 +40,11 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_append([], NULL);", [None]),
         ("RETURN list_append([NULL], NULL);", [None, None]),
         ("RETURN list_append([CAST(NULL, 'INT64')], 1);", [None, 1]),
-        # A typed top-level NULL list propagates to a NULL result.
         ("RETURN list_append(CAST(NULL, 'INT64[]'), 3);", None),
-        ("RETURN list_append(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'));", None),  # fmt: skip
+        (
+            "RETURN list_append(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'));",
+            None,
+        ),
         ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
         ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
         (
@@ -61,11 +63,20 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_concat([NULL], []);", [None]),
         ("RETURN list_concat([NULL], [NULL]);", [None, None]),
         ("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);", None),
-        ("RETURN list_concat(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64[]'));", None),  # fmt: skip
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64[]'));",
+            None,
+        ),
         ("RETURN list_concat(CAST(NULL, 'INT64[]'), []);", None),
         ("RETURN list_concat([], CAST(NULL, 'INT64[]'));", None),
-        ("RETURN list_concat(CAST(NULL, 'INT64[]'), [CAST(NULL, 'INT64')]);", None),  # fmt: skip
-        ("RETURN list_concat([CAST(NULL, 'INT64')], CAST(NULL, 'INT64[]'));", None),  # fmt: skip
+        (
+            "RETURN list_concat(CAST(NULL, 'INT64[]'), [CAST(NULL, 'INT64')]);",
+            None,
+        ),
+        (
+            "RETURN list_concat([CAST(NULL, 'INT64')], CAST(NULL, 'INT64[]'));",
+            None,
+        ),
         ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
         (
             "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",

@@ -115,7 +115,11 @@ def test_list_concat_documentation_examples(item_connection):
     assert _scalar(conn, "RETURN list_concat([1, 2], []);") == [1, 2]
     assert _scalar(conn, "RETURN list_concat([], []);") == []
     assert _scalar(conn, "RETURN list_concat([], [NULL]);") == [None]
-    assert _scalar(conn, "RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);") == [1, None, 2]  # fmt: skip
+    assert _scalar(conn, "RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);") == [
+        1,
+        None,
+        2,
+    ]
     assert _scalar(conn, "RETURN list_concat(CAST(NULL, 'INT64[]'), []);") is None
     assert _scalar(conn, "RETURN list_concat([], CAST(NULL, 'INT64[]'));") is None
     assert _scalar(conn, "RETURN list_concat([1, 2], [3.5, 4.5]);") == [
