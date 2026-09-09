@@ -54,14 +54,26 @@ END;
 ```
 
 Only a condition that evaluates to `TRUE` matches. Conditions that evaluate to
-`FALSE` or `NULL` do not match. Use `IS NULL` to test for a `NULL` value
-explicitly:
+`FALSE` or `NULL` do not match.
+
+Use `IS NULL` to test for a `NULL` value explicitly:
 
 ```cypher
 RETURN CASE
     WHEN expression IS NULL THEN 'null value'
     ELSE 'not matched'
 END;
+```
+
+Do not use `expression = NULL` since the comparison evaluates to
+`NULL` rather than `TRUE`:
+
+```cypher
+RETURN CASE
+    WHEN expression = NULL THEN 'null value'
+    ELSE 'not matched'
+END;
+// "not matched"
 ```
 
 ## ELSE
