@@ -126,6 +126,22 @@ RETURN list_append([1, 2], NULL);
 
 In this example, the existing list determines the element type as `INT64`, and the returned list preserves the appended `NULL` value.
 
+Existing `NULL` elements are also preserved, and the new element is appended
+after them:
+
+```cypher
+RETURN list_append([NULL], NULL);
+// [NULL, NULL]
+```
+
+If the input list itself is `NULL`, the result is `NULL` regardless of the
+element being appended:
+
+```cypher
+RETURN list_append(CAST(NULL, 'INT64[]'), 3);
+// NULL
+```
+
 #### Append a compatible type
 
 If the existing elements and the appended value have different but compatible types, NeuG determines a common type and converts the values when necessary:
@@ -255,6 +271,33 @@ RETURN list_concat([], []);
 ```
 
 When one side has a known element type, that type can be used to infer the type of an untyped empty list.
+
+#### Concatenate lists containing `NULL`
+
+`NULL` elements inside a list are preserved in their original order. Empty
+lists contribute no elements:
+
+```cypher
+RETURN list_concat([], [NULL]);
+// [NULL]
+```
+
+```cypher
+RETURN list_concat([1, CAST(NULL, 'INT64')], [2]);
+// [1, NULL, 2]
+```
+
+If either input list itself is `NULL`, the entire result is `NULL`:
+
+```cypher
+RETURN list_concat(CAST(NULL, 'INT64[]'), []);
+// NULL
+```
+
+```cypher
+RETURN list_concat([], CAST(NULL, 'INT64[]'));
+// NULL
+```
 
 #### Concatenate compatible element types
 

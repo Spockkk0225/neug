@@ -38,6 +38,11 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_append([1, 2], 3.5);", [1.0, 2.0, 3.5]),
         ("RETURN list_append([], 1);", [1]),
         ("RETURN list_append([], NULL);", [None]),
+        ("RETURN list_append([NULL], NULL);", [None, None]),
+        ("RETURN list_append([CAST(NULL, 'INT64')], 1);", [None, 1]),
+        # A typed top-level NULL list propagates to a NULL result.
+        ("RETURN list_append(CAST(NULL, 'INT64[]'), 3);", None),
+        ("RETURN list_append(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'));", None),  # fmt: skip
         ("RETURN list_append(CAST([1, 2], 'INT64[]'), 3);", [1, 2, 3]),
         ("RETURN list_concat([1, 2], [3, 4]);", [1, 2, 3, 4]),
         (
@@ -52,6 +57,15 @@ def test_list_append_and_concat(tmp_path):
         ("RETURN list_concat([], [1, 2]);", [1, 2]),
         ("RETURN list_concat([1, 2], []);", [1, 2]),
         ("RETURN list_concat([], []);", []),
+        ("RETURN list_concat([], [NULL]);", [None]),
+        ("RETURN list_concat([NULL], []);", [None]),
+        ("RETURN list_concat([NULL], [NULL]);", [None, None]),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);", None),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64[]'));", None),  # fmt: skip
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), []);", None),
+        ("RETURN list_concat([], CAST(NULL, 'INT64[]'));", None),
+        ("RETURN list_concat(CAST(NULL, 'INT64[]'), [CAST(NULL, 'INT64')]);", None),  # fmt: skip
+        ("RETURN list_concat([CAST(NULL, 'INT64')], CAST(NULL, 'INT64[]'));", None),  # fmt: skip
         ("RETURN list_append([1, 2], NULL);", [1, 2, None]),
         (
             "RETURN list_append([[1, 2], [3, 4]], [5, 6]);",
@@ -75,14 +89,6 @@ def test_list_append_and_concat(tmp_path):
     for query, expected in cases:
         value = list(conn.execute(query))[0][0]
         assert _nested_list(value) == expected
-
-    # A typed top-level NULL list propagates to a NULL result.
-    assert list(conn.execute("RETURN list_append(CAST(NULL, 'INT64[]'), 3);")) == [
-        [None]
-    ]
-    assert list(conn.execute("RETURN list_concat(CAST(NULL, 'INT64[]'), [1]);")) == [
-        [None]
-    ]
 
     with pytest.raises(Exception, match="first argument to be LIST or ARRAY"):
         conn.execute("RETURN list_append(1, 2);")
