@@ -33,7 +33,7 @@ Operators in NeuG are symbols or keywords that perform operations on operands. T
 | [Null](null_op) | Operations for handling null values (e.g., `IS NULL`, `IS NOT NULL`) |
 | [List](list_op) | Operations for working with list data structures (e.g., `IN`) |
 <!-- | Bit | Bitwise operations (e.g., `&`, `|`, `^`, `<<`, `>>`) | -->
-<!-- | Case When | Conditional expressions using `CASE WHEN` syntax | -->
+| [CASE](case_expr) | Conditional expressions using simple or searched `CASE` syntax |
 
 ## Functions
 
