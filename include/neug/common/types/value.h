@@ -109,10 +109,6 @@ class Value {
     return !is_null_ && type_.id() == DataTypeId::kBoolean && value_.boolean;
   }
 
-  bool IsFalse() const {
-    return !is_null_ && type_.id() == DataTypeId::kBoolean && !value_.boolean;
-  }
-
   template <class T>
   T GetValue() const {
     static_assert(sizeof(T) == 0, "Unsupported type for GetValue");

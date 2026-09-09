@@ -62,11 +62,9 @@ TEST_F(ValueTest, BooleanConstruction) {
   EXPECT_FALSE(val.IsNull());
   EXPECT_TRUE(val.GetValue<bool>());
   EXPECT_TRUE(val.IsTrue());
-  EXPECT_FALSE(val.IsFalse());
 
   Value false_val = Value::BOOLEAN(false);
   EXPECT_FALSE(false_val.IsTrue());
-  EXPECT_TRUE(false_val.IsFalse());
 }
 
 TEST_F(ValueTest, IntegerConstruction) {
