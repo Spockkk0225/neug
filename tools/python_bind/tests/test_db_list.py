@@ -199,26 +199,12 @@ def test_list_contains_null_semantics(empty_db):
     _, conn = empty_db
     cases = [
         ("list_contains(CAST(NULL, 'INT64[]'), 1)", None),
-        (
-            "list_contains(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))",
-            None,
-        ),
+        ("list_contains(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))", None),
         ("list_contains(CAST([], 'INT64[]'), 1)", False),
-        (
-            "list_contains(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))",
-            False,
-        ),
+        ("list_contains(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))", False),
         ("list_contains(CAST([1, 2], 'INT64[]'), 1)", True),
-        (
-            "list_contains("
-            "CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)",
-            True,
-        ),
-        (
-            "list_contains("
-            "CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)",
-            None,
-        ),
+        ("list_contains(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)", True),
+        ("list_contains(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)", None),
         ("list_contains(CAST([1, 3], 'INT64[]'), 2)", False),
     ]
     for expression, expected in cases:
@@ -233,14 +219,8 @@ def test_list_has_null_semantics(empty_db):
         ("list_has(CAST([], 'INT64[]'), 1)", False),
         ("list_has(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))", False),
         ("list_has(CAST([1, 2], 'INT64[]'), 1)", True),
-        (
-            "list_has(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)",
-            True,
-        ),
-        (
-            "list_has(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)",
-            None,
-        ),
+        ("list_has(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)", True),
+        ("list_has(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)", None),
         ("list_has(CAST([1, 3], 'INT64[]'), 2)", False),
     ]
     for expression, expected in cases:
