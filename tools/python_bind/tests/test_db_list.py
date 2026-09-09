@@ -182,14 +182,14 @@ def test_list_cast_contract(tmp_path):
 def test_in_null_semantics(empty_db):
     _, conn = empty_db
     cases = [
-        ("1 IN CAST(NULL, 'INT64[]')", None),
-        ("CAST(NULL, 'INT64') IN CAST(NULL, 'INT64[]')", None),
-        ("1 IN CAST([], 'INT64[]')", False),
-        ("CAST(NULL, 'INT64') IN CAST([], 'INT64[]')", False),
-        ("1 IN CAST([1, 2], 'INT64[]')", True),
-        ("1 IN CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]')", True),
-        ("2 IN CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]')", None),
-        ("2 IN CAST([1, 3], 'INT64[]')", False),
+        ("1 IN NULL", None),
+        ("CAST(NULL, 'INT64') IN NULL", None),
+        ("1 IN []", False),
+        ("CAST(NULL, 'INT64') IN []", False),
+        ("1 IN [1, 2]", True),
+        ("1 IN [CAST(NULL, 'INT64'), 1, 2]", True),
+        ("2 IN [1, CAST(NULL, 'INT64'), 3]", None),
+        ("2 IN [1, 3]", False),
     ]
     for expression, expected in cases:
         assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
@@ -198,14 +198,14 @@ def test_in_null_semantics(empty_db):
 def test_list_contains_null_semantics(empty_db):
     _, conn = empty_db
     cases = [
-        ("list_contains(CAST(NULL, 'INT64[]'), 1)", None),
-        ("list_contains(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))", None),
-        ("list_contains(CAST([], 'INT64[]'), 1)", False),
-        ("list_contains(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))", False),
-        ("list_contains(CAST([1, 2], 'INT64[]'), 1)", True),
-        ("list_contains(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)", True),
-        ("list_contains(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)", None),
-        ("list_contains(CAST([1, 3], 'INT64[]'), 2)", False),
+        ("list_contains(NULL, 1)", None),
+        ("list_contains(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_contains([], 1)", False),
+        ("list_contains([], CAST(NULL, 'INT64'))", False),
+        ("list_contains([1, 2], 1)", True),
+        ("list_contains([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_contains([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_contains([1, 3], 2)", False),
     ]
     for expression, expected in cases:
         assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
@@ -214,17 +214,36 @@ def test_list_contains_null_semantics(empty_db):
 def test_list_has_null_semantics(empty_db):
     _, conn = empty_db
     cases = [
-        ("list_has(CAST(NULL, 'INT64[]'), 1)", None),
-        ("list_has(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))", None),
-        ("list_has(CAST([], 'INT64[]'), 1)", False),
-        ("list_has(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))", False),
-        ("list_has(CAST([1, 2], 'INT64[]'), 1)", True),
-        ("list_has(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)", True),
-        ("list_has(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)", None),
-        ("list_has(CAST([1, 3], 'INT64[]'), 2)", False),
+        ("list_has(NULL, 1)", None),
+        ("list_has(NULL, CAST(NULL, 'INT64'))", None),
+        ("list_has([], 1)", False),
+        ("list_has([], CAST(NULL, 'INT64'))", False),
+        ("list_has([1, 2], 1)", True),
+        ("list_has([CAST(NULL, 'INT64'), 1, 2], 1)", True),
+        ("list_has([1, CAST(NULL, 'INT64'), 3], 2)", None),
+        ("list_has([1, 3], 2)", False),
     ]
     for expression, expected in cases:
         assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_in_null_semantics_with_variables(empty_db):
+    _, conn = empty_db
+    conn.execute("CREATE NODE TABLE MembershipCase(id INT64, needle INT64, PRIMARY KEY(id));")
+    conn.execute("CREATE (:MembershipCase {id: 1, needle: 1}), (:MembershipCase {id: 2, needle: 2}), (:MembershipCase {id: 3, needle: NULL});")
+    cases = [
+        (1, "NULL", None),
+        (3, "NULL", None),
+        (1, "[]", False),
+        (3, "[]", False),
+        (1, "[1, 2]", True),
+        (1, "[CAST(NULL, 'INT64'), 1, 2]", True),
+        (2, "[1, CAST(NULL, 'INT64'), 3]", None),
+        (2, "[1, 3]", False),
+    ]
+    for case_id, values, expected in cases:
+        rows = list(conn.execute(f"MATCH (c:MembershipCase) WHERE c.id = {case_id} RETURN c.needle IN {values};"))
+        assert rows == [[expected]]
 
 
 def test_list_preserves_null_elements_during_unwind(tmp_path):
