@@ -39,12 +39,6 @@ const DataType& getListLikeChildType(const DataType& type) {
   if (type.id() == DataTypeId::kArray) {
     return ArrayType::GetChildType(type);
   }
-  // Preserve the NULL type and handle it when unfolding the concrete value.
-  // TODO(shaoyu): Preserve the type information of NULL literals in the
-  // physical plan.
-  if (type.id() == DataTypeId::kNull) {
-    return type;
-  }
   THROW_INVALID_ARGUMENT_EXCEPTION("Unfold column type is not list or array");
 }
 
