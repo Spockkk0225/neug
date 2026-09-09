@@ -179,33 +179,72 @@ def test_list_cast_contract(tmp_path):
     db.close()
 
 
-@pytest.mark.parametrize(
-    "expression",
-    [
-        "CAST(null, 'INT64') IN CAST([], 'INT64[]')",
-        "list_contains(CAST([], 'INT64[]'), CAST(null, 'INT64'))",
-        "list_has(CAST([], 'INT64[]'), CAST(null, 'INT64'))",
-    ],
-)
-def test_null_membership_in_empty_list(empty_db, expression):
+def test_in_null_semantics(empty_db):
     _, conn = empty_db
-    assert list(conn.execute(f"RETURN {expression};")) == [[False]]
+    cases = [
+        ("1 IN CAST(NULL, 'INT64[]')", None),
+        ("CAST(NULL, 'INT64') IN CAST(NULL, 'INT64[]')", None),
+        ("1 IN CAST([], 'INT64[]')", False),
+        ("CAST(NULL, 'INT64') IN CAST([], 'INT64[]')", False),
+        ("1 IN CAST([1, 2], 'INT64[]')", True),
+        ("1 IN CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]')", True),
+        ("2 IN CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]')", None),
+        ("2 IN CAST([1, 3], 'INT64[]')", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
 
 
-@pytest.mark.parametrize(
-    "expression",
-    [
-        "2 IN CAST([1, CAST(null, 'INT64'), 3], 'INT64[]')",
-        "list_contains(CAST([1, CAST(null, 'INT64'), 3], 'INT64[]'), 2)",
-        "list_has(CAST([1, CAST(null, 'INT64'), 3], 'INT64[]'), 2)",
-        "2 IN CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]')",
-        "list_contains(CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]'), 2)",
-        "list_has(CAST([1, CAST(null, 'INT64'), 3], 'INT64[3]'), 2)",
-    ],
-)
-def test_no_match_with_null_element(empty_db, expression):
+def test_list_contains_null_semantics(empty_db):
     _, conn = empty_db
-    assert list(conn.execute(f"RETURN {expression};")) == [[None]]
+    cases = [
+        ("list_contains(CAST(NULL, 'INT64[]'), 1)", None),
+        (
+            "list_contains(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))",
+            None,
+        ),
+        ("list_contains(CAST([], 'INT64[]'), 1)", False),
+        (
+            "list_contains(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))",
+            False,
+        ),
+        ("list_contains(CAST([1, 2], 'INT64[]'), 1)", True),
+        (
+            "list_contains("
+            "CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)",
+            True,
+        ),
+        (
+            "list_contains("
+            "CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)",
+            None,
+        ),
+        ("list_contains(CAST([1, 3], 'INT64[]'), 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
+
+
+def test_list_has_null_semantics(empty_db):
+    _, conn = empty_db
+    cases = [
+        ("list_has(CAST(NULL, 'INT64[]'), 1)", None),
+        ("list_has(CAST(NULL, 'INT64[]'), CAST(NULL, 'INT64'))", None),
+        ("list_has(CAST([], 'INT64[]'), 1)", False),
+        ("list_has(CAST([], 'INT64[]'), CAST(NULL, 'INT64'))", False),
+        ("list_has(CAST([1, 2], 'INT64[]'), 1)", True),
+        (
+            "list_has(CAST([CAST(NULL, 'INT64'), 1, 2], 'INT64[]'), 1)",
+            True,
+        ),
+        (
+            "list_has(CAST([1, CAST(NULL, 'INT64'), 3], 'INT64[]'), 2)",
+            None,
+        ),
+        ("list_has(CAST([1, 3], 'INT64[]'), 2)", False),
+    ]
+    for expression, expected in cases:
+        assert list(conn.execute(f"RETURN {expression};")) == [[expected]]
 
 
 def test_list_preserves_null_elements_during_unwind(tmp_path):
