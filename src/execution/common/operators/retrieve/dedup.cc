@@ -44,21 +44,39 @@ neug::result<ContextChunk> Dedup::dedup(ContextChunk&& chunk,
   } else {
     offsets.clear();
     flat_hash_set<std::string> set;
-    for (size_t r_i = 0; r_i < row_num; ++r_i) {
-      vector_t<char> bytes(has_optional ? (cols.size() + 7) / 8 : 0, 0);
-      Encoder encoder(bytes);
-      for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
-        auto val = key_columns[c_i]->get_elem(r_i);
-        if (has_optional && val.IsNull()) {
-          bytes[c_i >> 3] |= static_cast<char>(1U << (c_i & 7));
+    if (!has_optional) {
+      for (size_t r_i = 0; r_i < row_num; ++r_i) {
+        vector_t<char> bytes;
+        Encoder encoder(bytes);
+        for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
+          auto val = chunk.get(cols[c_i])->get_elem(r_i);
+          encode_value(val, encoder);
+          encoder.put_byte('#');
         }
-        encode_value(val, encoder);
-        encoder.put_byte('#');
+        std::string cur(bytes.begin(), bytes.end());
+        if (set.find(cur) == set.end()) {
+          offsets.push_back(r_i);
+          set.insert(cur);
+        }
       }
-      std::string cur(bytes.begin(), bytes.end());
-      if (set.find(cur) == set.end()) {
-        offsets.push_back(r_i);
-        set.insert(cur);
+    } else {
+      const auto null_bitmap_size = (cols.size() + 7) / 8;
+      for (size_t r_i = 0; r_i < row_num; ++r_i) {
+        vector_t<char> bytes(null_bitmap_size, 0);
+        Encoder encoder(bytes);
+        for (size_t c_i = 0; c_i < cols.size(); ++c_i) {
+          auto val = key_columns[c_i]->get_elem(r_i);
+          if (val.IsNull()) {
+            bytes[c_i >> 3] |= static_cast<char>(1U << (c_i & 7));
+          }
+          encode_value(val, encoder);
+          encoder.put_byte('#');
+        }
+        std::string cur(bytes.begin(), bytes.end());
+        if (set.find(cur) == set.end()) {
+          offsets.push_back(r_i);
+          set.insert(cur);
+        }
       }
     }
   }
