@@ -8,8 +8,8 @@ Operator | Description | Example
 `[]` | extract an element from a list or fixed-size array by zero-based index | `[10, 20, 30][0]`
 `UNWIND` | expand a list or fixed-size array into one row per element | `MATCH (s:Sensor) UNWIND s.readings AS x RETURN x`
 
-Note: `UNWIND` raises an error when its input list or array is NULL. It preserves
-NULL values contained in a non-NULL list or array. If `collect()` is applied
+Note: `UNWIND` cannot expand a NULL value and raises an error. It preserves NULL
+values contained in a non-NULL list or array. If `collect()` is applied
 afterward, the NULL values are filtered out.
 
 ## Array Values
