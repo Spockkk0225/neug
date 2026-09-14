@@ -201,9 +201,7 @@ def test_unwind_null_list_and_array_raise_error(empty_db):
     for data_type in ("INT64[]", "INT64[3]"):
         with pytest.raises(Exception, match="Cannot UNWIND NULL"):
             list(
-                conn.execute(
-                    f"UNWIND CAST(NULL, '{data_type}') AS value RETURN value;"
-                )
+                conn.execute(f"UNWIND CAST(NULL, '{data_type}') AS value RETURN value;")
             )
 
 
