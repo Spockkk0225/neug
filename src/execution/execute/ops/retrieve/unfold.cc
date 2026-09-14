@@ -39,6 +39,9 @@ const DataType& getListLikeChildType(const DataType& type) {
   if (type.id() == DataTypeId::kArray) {
     return ArrayType::GetChildType(type);
   }
+  if (type.id() == DataTypeId::kNull) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("Cannot UNWIND NULL");
+  }
   THROW_INVALID_ARGUMENT_EXCEPTION("Unfold column type is not list or array");
 }
 

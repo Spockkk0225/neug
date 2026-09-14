@@ -221,31 +221,6 @@
                                                             {
                                                                 "const": {
                                                                     "none": {}
-                                                                },
-                                                                "node_type": {
-                                                                    "data_type": {
-                                                                        "tuple": {
-                                                                            "component_types": [
-                                                                                {
-                                                                                    "string": {
-                                                                                        "var_char": {
-                                                                                            "max_length": 256
-                                                                                        }
-                                                                                    }
-                                                                                },
-                                                                                {
-                                                                                    "primitive_type": "DT_SIGNED_INT32"
-                                                                                },
-                                                                                {
-                                                                                    "string": {
-                                                                                        "var_char": {
-                                                                                            "max_length": 256
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            ]
-                                                                        }
-                                                                    }
                                                                 }
                                                             }
                                                         ]

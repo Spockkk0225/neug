@@ -278,10 +278,8 @@ std::unique_ptr<::common::Expression> GExprConverter::convertDefaultValue(
     const PropertyDefinition& propertyDef) {
   const auto& defaultValue = propertyDef.getDefaultValue();
   if (!propertyDef.hasDefaultValue() || defaultValue.IsNull()) {
-    auto result = convertValue(
+    return convertValue(
         compiler_impl::Value::createNullValue(defaultValue.type()));
-    result->mutable_operators(0)->clear_node_type();
-    return result;
   }
   return convertValue(
       common::convertToCompilerValue(defaultValue, defaultValue.type()));
@@ -293,10 +291,7 @@ std::unique_ptr<::common::Expression> GExprConverter::convertValue(
     auto valuePB = std::make_unique<::common::Value>();
     valuePB->set_allocated_none(new ::common::None());
     auto exprPB = std::make_unique<::common::Expression>();
-    auto oprPB = exprPB->add_operators();
-    oprPB->set_allocated_const_(valuePB.release());
-    oprPB->set_allocated_node_type(
-        typeConverter.convertLogicalType(value.getDataType()).release());
+    exprPB->add_operators()->set_allocated_const_(valuePB.release());
     return exprPB;
   }
   const auto typeId = value.getDataType().id();

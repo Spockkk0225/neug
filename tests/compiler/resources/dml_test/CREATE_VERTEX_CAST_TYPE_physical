@@ -93,11 +93,6 @@
             {
              "const": {
               "none": {}
-             },
-             "node_type": {
-              "data_type": {
-               "primitive_type": "DT_BOOL"
-              }
              }
             }
            ]
@@ -146,15 +141,6 @@
             {
              "const": {
               "none": {}
-             },
-             "node_type": {
-              "data_type": {
-               "string": {
-                "var_char": {
-                 "max_length": 256
-                }
-               }
-              }
              }
             }
            ]
@@ -187,15 +173,6 @@
             {
              "const": {
               "none": {}
-             },
-             "node_type": {
-              "data_type": {
-               "temporal": {
-                "date": {
-                 "date_format": "DF_YYYY_MM_DD"
-                }
-               }
-              }
              }
             }
            ]
@@ -212,16 +189,6 @@
             {
              "const": {
               "none": {}
-             },
-             "node_type": {
-              "data_type": {
-               "temporal": {
-                "date_time": {
-                 "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
-                 "time_zone_format": "TZF_UTC"
-                }
-               }
-              }
              }
             }
            ]

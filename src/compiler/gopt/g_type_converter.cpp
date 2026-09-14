@@ -326,10 +326,6 @@ std::unique_ptr<::common::IrDataType>
 GPhysicalTypeConverter::convertSimpleLogicalType(const neug::DataType& type) {
   auto result = std::make_unique<::common::DataType>();
   switch (type.id()) {
-  case common::DataTypeId::kNull: {
-    result->set_primitive_type(::common::PrimitiveType::DT_NULL);
-    break;
-  }
   case common::DataTypeId::kUnknown: {
     result->set_primitive_type(::common::PrimitiveType::DT_ANY);
     break;
@@ -466,7 +462,7 @@ neug::DataType GLogicalTypeConverter::convertDataType(
     case ::common::PrimitiveType::DT_DOUBLE:
       return neug::DataType(DataTypeId::kDouble);
     case ::common::PrimitiveType::DT_NULL:
-      return neug::DataType(DataTypeId::kNull);
+      return neug::DataType(DataTypeId::kUnknown);
     default:
       THROW_EXCEPTION_WITH_FILE_LINE(
           "Unsupported PrimitiveType: " +
