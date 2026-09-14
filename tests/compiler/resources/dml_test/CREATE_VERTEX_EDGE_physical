@@ -45,6 +45,15 @@
             {
              "const": {
               "none": {}
+             },
+             "node_type": {
+              "data_type": {
+               "string": {
+                "var_char": {
+                 "max_length": 4
+                }
+               }
+              }
              }
             }
            ]
@@ -61,6 +70,11 @@
             {
              "const": {
               "none": {}
+             },
+             "node_type": {
+              "data_type": {
+               "primitive_type": "DT_SIGNED_INT64"
+              }
              }
             }
            ]
@@ -104,6 +118,15 @@
             {
              "const": {
               "none": {}
+             },
+             "node_type": {
+              "data_type": {
+               "string": {
+                "var_char": {
+                 "max_length": 4
+                }
+               }
+              }
              }
             }
            ]
@@ -120,6 +143,11 @@
             {
              "const": {
               "none": {}
+             },
+             "node_type": {
+              "data_type": {
+               "primitive_type": "DT_SIGNED_INT64"
+              }
              }
             }
            ]

@@ -55,6 +55,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_SIGNED_INT32"
+             }
             }
            }
           ]
@@ -71,6 +76,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_UNSIGNED_INT32"
+             }
             }
            }
           ]
@@ -115,6 +125,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_UNSIGNED_INT64"
+             }
             }
            }
           ]
@@ -131,6 +146,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_BOOL"
+             }
             }
            }
           ]
@@ -147,6 +167,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_FLOAT"
+             }
             }
            }
           ]
@@ -163,6 +188,11 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "primitive_type": "DT_DOUBLE"
+             }
             }
            }
           ]
@@ -179,6 +209,15 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 256
+               }
+              }
+             }
             }
            }
           ]
@@ -195,6 +234,15 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "string": {
+               "var_char": {
+                "max_length": 4
+               }
+              }
+             }
             }
            }
           ]
@@ -211,6 +259,15 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "temporal": {
+               "date": {
+                "date_format": "DF_YYYY_MM_DD"
+               }
+              }
+             }
             }
            }
           ]
@@ -227,6 +284,16 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "temporal": {
+               "date_time": {
+                "date_time_format": "DTF_YYYY_MM_DD_HH_MM_SS_SSS",
+                "time_zone_format": "TZF_UTC"
+               }
+              }
+             }
             }
            }
           ]
@@ -243,6 +310,13 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": {
+              "temporal": {
+               "interval": {}
+              }
+             }
             }
            }
           ]
@@ -259,6 +333,9 @@
            {
             "const": {
              "none": {}
+            },
+            "node_type": {
+             "data_type": "<LIST_OR_ARRAY>"
             }
            }
           ]
