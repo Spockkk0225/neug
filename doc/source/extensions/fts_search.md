@@ -38,6 +38,7 @@ ON <node_table>
 USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
+    stopwords = 'english' | 'none' | ['<stopword>', ...],
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>'
@@ -115,9 +116,30 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
+| `stopwords` | Stopword list: `english`, `none`, or a custom list of strings | `english` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
+
+### Stopwords
+
+FTS indexes remove English stopwords by default. Set `stopwords` to `english`
+to select the built-in English list explicitly, to `none` to disable filtering,
+or to a list of strings to use a custom stopword list:
+
+```cypher
+CREATE INDEX english_item_fts ON Item USING FTS (text)
+WITH (stopwords = 'english');
+
+CREATE INDEX item_text_fts ON Item USING FTS (text)
+WITH (stopwords = 'none');
+
+CREATE INDEX custom_item_fts ON Item USING FTS (text)
+WITH (stopwords = ['a', 'custom']);
+```
+
+Stopwords are applied consistently while indexing documents and parsing
+queries.
 
 ### Tokenizers
 

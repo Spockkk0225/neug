@@ -175,7 +175,7 @@ void FTSIndex::ParseOptions() {
   }
 
   static const std::unordered_set<std::string> kKnownOptions = {
-      "tokenizer", "prefix", "jieba_mode", "jieba_dict"};
+      "tokenizer", "prefix", "jieba_mode", "jieba_dict", "stopwords"};
   for (const auto& [name, value] : meta_->options) {
     if (!kKnownOptions.contains(name)) {
       THROW_INVALID_ARGUMENT_EXCEPTION("Unsupported FTSIndex option: " + name);
