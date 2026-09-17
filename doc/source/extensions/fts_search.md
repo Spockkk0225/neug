@@ -159,6 +159,8 @@ Supported tokenizers are:
 - `jieba` performs Chinese word segmentation using cppjieba and loads the
   built-in small dictionary and HMM model.
 
+All tokenizers are case-insensitive, and all tokens are converted to lowercase.
+
 The Jieba tokenizer supports three modes:
 
 - `mp` selects the most probable dictionary-based segmentation.
