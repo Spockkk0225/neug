@@ -456,6 +456,7 @@ TEST(JiebaFTSTokenizerTest, RejectsUserDictPathSeparators) {
 
 TEST(FTSTokenizerTest, ValidatesStopwordOptions) {
   EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "english"}}));
+  EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "jieba"}}));
   EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "none"}}));
   EXPECT_NO_THROW(FTSTokenizer::Create({{"stopwords", "[]"}}));
   EXPECT_NO_THROW(
@@ -466,6 +467,21 @@ TEST(FTSTokenizerTest, ValidatesStopwordOptions) {
                  std::invalid_argument)
         << value;
   }
+}
+
+TEST(JiebaFTSTokenizerTest, LoadsJiebaStopwords) {
+  JiebaFTSTokenizer tokenizer(JiebaMode::kMix);
+  tokenizer.LoadStopwords("jieba");
+  const std::string input = "我们是图数据库";
+  std::vector<CollectedToken> tokens;
+  ASSERT_EQ(tokenizer.Tokenize(&tokens, input.data(), input.size(),
+                               FTS5_TOKENIZE_DOCUMENT, CollectToken),
+            SQLITE_OK);
+  std::vector<std::string> actual;
+  for (const auto& token : tokens) {
+    actual.push_back(token.text);
+  }
+  EXPECT_EQ(actual, (std::vector<std::string>{"图", "数据库"}));
 }
 
 TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {

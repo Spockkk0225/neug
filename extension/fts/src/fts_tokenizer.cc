@@ -45,6 +45,7 @@ namespace {
 
 #include "../dict/hmm_model_zlib.inc"
 #include "../dict/jieba_dict_small_zlib.inc"
+#include "../dict/jieba_stopwords_zlib.inc"
 
 struct JiebaDictFile {
   std::string_view filename;
@@ -59,6 +60,9 @@ constexpr JiebaDictFile kJiebaDict{"jieba.dict.utf8", kJiebaDictCompressed,
 constexpr JiebaDictFile kJiebaHmmModel{"hmm_model.utf8", kHmmModelCompressed,
                                        sizeof(kHmmModelCompressed),
                                        kHmmModelCompressedOriginalSize};
+constexpr JiebaDictFile kJiebaStopwords{
+    "stop_words.utf8", kJiebaStopwordsCompressed,
+    sizeof(kJiebaStopwordsCompressed), kJiebaStopwordsCompressedOriginalSize};
 constexpr std::string_view kEnglishStopwords[] = {
     "a",
     "a's",
@@ -779,8 +783,8 @@ void LowercaseASCII(std::string& token) {
 std::unordered_set<std::string> ParseStopwordList(std::string_view input) {
   const auto invalid = [] {
     throw std::invalid_argument(
-        "Invalid stopwords option: expected 'english', 'none', or a list of "
-        "strings");
+        "Invalid stopwords option: expected 'english', 'jieba', 'none', or a "
+        "list of strings");
   };
   std::istringstream stream{std::string(input)};
   char delimiter;
@@ -909,6 +913,18 @@ void FTSTokenizer::LoadStopwords(std::string_view stopwords) {
   if (stopwords == "english") {
     for (const auto stopword : kEnglishStopwords) {
       stopwords_.emplace(stopword);
+    }
+    return;
+  }
+  if (stopwords == "jieba") {
+    std::istringstream stream(DecompressJiebaDict(kJiebaStopwords));
+    for (std::string stopword; std::getline(stream, stopword);) {
+      if (!stopword.empty() && stopword.back() == '\r') {
+        stopword.pop_back();
+      }
+      if (!stopword.empty()) {
+        stopwords_.emplace(std::move(stopword));
+      }
     }
     return;
   }

@@ -38,7 +38,7 @@ ON <node_table>
 USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
-    stopwords = 'english' | 'none' | ['<stopword>', ...],
+    stopwords = 'english' | 'jieba' | 'none' | ['<stopword>', ...],
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>'
@@ -116,7 +116,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
-| `stopwords` | Stopword list: `english`, `none`, or a custom list of strings | `english` |
+| `stopwords` | Stopword list: `english`, `jieba`, `none`, or a custom list of strings | `english` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
@@ -124,12 +124,16 @@ The `WITH` clause accepts the following case-sensitive option names:
 ### Stopwords
 
 FTS indexes remove English stopwords by default. Set `stopwords` to `english`
-to select the built-in English list explicitly, to `none` to disable filtering,
-or to a list of strings to use a custom stopword list:
+to select the built-in 670-word English stopword list explicitly, to `jieba`
+to use cppjieba's stopword list, to `none` to disable filtering, or to a list
+of strings to use a custom stopword list:
 
 ```cypher
 CREATE INDEX english_item_fts ON Item USING FTS (text)
 WITH (stopwords = 'english');
+
+CREATE INDEX jieba_item_fts ON Item USING FTS (text)
+WITH (tokenizer = 'jieba', stopwords = 'jieba');
 
 CREATE INDEX item_text_fts ON Item USING FTS (text)
 WITH (stopwords = 'none');

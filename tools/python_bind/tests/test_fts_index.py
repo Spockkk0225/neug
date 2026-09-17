@@ -895,6 +895,46 @@ def test_fts_stopwords_default_english_and_none(tmp_path):
         db.close()
 
 
+def test_jieba_stopwords(tmp_path):
+    db = Database(db_path=str(tmp_path / "jieba_stopwords_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        for label in ("JiebaItem", "NoneItem"):
+            connection.execute(
+                f"CREATE NODE TABLE {label}(id INT64 PRIMARY KEY, text STRING);"
+            )
+            connection.execute(f"CREATE (:{label} {{id: 1, text: '我们是图数据库'}});")
+
+        connection.execute(
+            "CREATE INDEX jieba_item_fts ON JiebaItem USING FTS (text) "
+            "WITH (tokenizer = 'jieba', stopwords = 'jieba');"
+        )
+        connection.execute(
+            "CREATE INDEX none_item_fts ON NoneItem USING FTS (text) "
+            "WITH (tokenizer = 'jieba', stopwords = 'none');"
+        )
+
+        def search_label(label, query):
+            return [
+                row[0]
+                for row in connection.execute(
+                    f"MATCH (n:{label}) "
+                    "RETURN n.id, bm25(n.text, $query) AS score "
+                    "ORDER BY score ASC;",
+                    parameters={"query": query},
+                )
+            ]
+
+        assert search_label("JiebaItem", "我们") == []
+        assert search_label("NoneItem", "我们") == [1]
+        assert search_label("JiebaItem", "数据库") == [1]
+        assert search_label("NoneItem", "数据库") == [1]
+    finally:
+        connection.close()
+        db.close()
+
+
 @pytest.mark.parametrize(
     ("tokenizer", "jieba_mode", "expected_ids"),
     [
