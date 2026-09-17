@@ -38,7 +38,7 @@ ON <node_table>
 USING FTS (<string_property> [, <string_property> ...])
 [WITH (
     tokenizer = '<tokenizer>',
-    stopwords = 'english' | 'jieba' | 'none' | ['<stopword>', ...],
+    stopwords = 'english' | 'jieba' | 'none' | ['<stopword>', ...] | '<file_path>',
     jieba_mode = '<jieba_mode>',
     jieba_dict = '<dictionary_path>',
     prefix = '<prefix_lengths>'
@@ -116,7 +116,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | Option | Description | Default |
 | --- | --- | --- |
 | `tokenizer` | Tokenization strategy used to split indexed text into searchable terms | `unicode61` |
-| `stopwords` | Stopword list: `english`, `jieba`, `none`, or a custom list of strings | `english` |
+| `stopwords` | Stopword list: `english`, `jieba`, `none`, a custom list of strings, or a file path | `english` |
 | `jieba_mode` | Jieba algorithm: `mp`, `hmm`, or `mix`; valid only when `tokenizer = 'jieba'` | `mix` |
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
@@ -140,7 +140,14 @@ WITH (stopwords = 'none');
 
 CREATE INDEX custom_item_fts ON Item USING FTS (text)
 WITH (stopwords = ['a', 'custom']);
+
+CREATE INDEX file_item_fts ON Item USING FTS (text)
+WITH (stopwords = '/path/to/stop_words.txt');
 ```
+
+A stopword file must be UTF-8 encoded and contain one word per line. The file
+is read only when the index is created. Its contents are stored in the index
+checkpoint, so the original file is not required when reopening the database.
 
 Stopwords are applied consistently while indexing documents and parsing
 queries. Index checkpoints created by earlier versions remain compatible and

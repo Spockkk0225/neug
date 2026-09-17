@@ -1172,6 +1172,64 @@ TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
   EXPECT_EQ(result->front().vid, 7u);
 }
 
+TEST(FTSIndexTest, LoadsStopwordsFromFile) {
+  TemporaryDatabaseDirectory directory;
+  std::filesystem::create_directories(directory.path());
+  const auto stopwords_path = directory.path() / "stop_words.txt";
+  std::ofstream(stopwords_path) << "custom\ndon't\n";
+
+  TestCheckpoint checkpoint(directory.path().string());
+  auto index = MakeUnopenedIndex("stopword_file_fts");
+  auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+  options["stopwords"] = stopwords_path.string();
+  index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+  ASSERT_TRUE(
+      index->Upsert(7, MakeTextIndexValue(Value::STRING("custom alpha"))).ok());
+  auto filtered = index->Search(MakeQuery("custom"));
+  ASSERT_TRUE(filtered.has_value()) << filtered.error().ToString();
+  EXPECT_TRUE(filtered->empty());
+  auto retained = index->Search(MakeQuery("alpha"));
+  ASSERT_TRUE(retained.has_value()) << retained.error().ToString();
+  ASSERT_EQ(retained->size(), 1u);
+  EXPECT_EQ(retained->front().vid, 7u);
+}
+
+TEST(FTSIndexTest, StopwordsPersistAcrossDumpAndReopen) {
+  for (const bool from_file : {false, true}) {
+    TemporaryDatabaseDirectory directory;
+    std::filesystem::create_directories(directory.path());
+    const auto stopwords_path = directory.path() / "stop_words.txt";
+    if (from_file) {
+      std::ofstream(stopwords_path) << "custom\n";
+    }
+
+    TestCheckpoint checkpoint(directory.path().string());
+    auto index = MakeUnopenedIndex(from_file ? "file_fts" : "literal_fts");
+    auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
+    options["stopwords"] =
+        from_file ? stopwords_path.string() : "['custom']";
+    index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
+    ASSERT_TRUE(
+        index->Upsert(7, MakeTextIndexValue(Value::STRING("custom alpha")))
+            .ok());
+
+    CheckpointManifest manifest;
+    index->Dump(*checkpoint, manifest, "index_stopwords_fts");
+    const auto* descriptor = manifest.FindModule("index_stopwords_fts");
+    ASSERT_NE(descriptor, nullptr);
+    if (from_file) {
+      std::filesystem::remove(stopwords_path);
+    }
+
+    FTSIndex restored;
+    restored.Open(*checkpoint, manifest, *descriptor, MemoryLevel::kInMemory);
+    EXPECT_EQ(restored.GetMeta().options.at("stopwords"), "['custom']");
+    auto filtered = restored.Search(MakeQuery("custom"));
+    ASSERT_TRUE(filtered.has_value()) << filtered.error().ToString();
+    EXPECT_TRUE(filtered->empty());
+  }
+}
+
 TEST(FTSIndexTest, JiebaDictPathPersistsAsAbsolutePath) {
   TemporaryDatabaseDirectory directory;
   std::filesystem::create_directories(directory.path());

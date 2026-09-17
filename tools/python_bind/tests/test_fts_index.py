@@ -935,6 +935,62 @@ def test_jieba_stopwords(tmp_path):
         db.close()
 
 
+def test_fts_stopwords_file(tmp_path):
+    stopwords_file = tmp_path / "stop_words.txt"
+    stopwords_file.write_text("custom\ndon't\n", encoding="utf-8")
+    db = Database(db_path=str(tmp_path / "stopwords_file_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute(
+            "CREATE (:Item {id: 1, text: 'custom alpha'}), "
+            "(:Item {id: 2, text: 'alpha'});"
+        )
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+            f"WITH (stopwords = '{stopwords_file}');"
+        )
+        assert search(connection, "custom") == []
+        assert {row[0] for row in search(connection, "alpha")} == {1, 2}
+    finally:
+        connection.close()
+        db.close()
+
+
+@pytest.mark.parametrize("from_file", [False, True])
+def test_fts_stopwords_persist_across_checkpoint(tmp_path, from_file):
+    stopwords_file = tmp_path / "stop_words.txt"
+    if from_file:
+        stopwords_file.write_text("custom\n", encoding="utf-8")
+    stopwords = f"'{stopwords_file}'" if from_file else "['custom']"
+    database_path = str(tmp_path / f"stopwords_{from_file}_fts_db")
+
+    db = Database(db_path=database_path, mode="w")
+    connection = db.connect()
+    load_fts(connection, skip_if_unavailable=True)
+    create_item_table(connection)
+    connection.execute("CREATE (:Item {id: 1, text: 'custom alpha'});")
+    connection.execute(
+        "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+        f"WITH (stopwords = {stopwords});"
+    )
+    connection.close()
+    db.close()
+
+    if from_file:
+        stopwords_file.unlink()
+    reopened_db = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened_db.connect()
+    try:
+        load_fts(reopened_connection)
+        assert search(reopened_connection, "custom") == []
+        assert [row[0] for row in search(reopened_connection, "alpha")] == [1]
+    finally:
+        reopened_connection.close()
+        reopened_db.close()
+
+
 @pytest.mark.parametrize(
     ("tokenizer", "jieba_mode", "expected_ids"),
     [
