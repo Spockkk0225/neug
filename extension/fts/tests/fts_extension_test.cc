@@ -1206,8 +1206,7 @@ TEST(FTSIndexTest, StopwordsPersistAcrossDumpAndReopen) {
     TestCheckpoint checkpoint(directory.path().string());
     auto index = MakeUnopenedIndex(from_file ? "file_fts" : "literal_fts");
     auto& options = const_cast<IndexMeta&>(index->GetMeta()).options;
-    options["stopwords"] =
-        from_file ? stopwords_path.string() : "['custom']";
+    options["stopwords"] = from_file ? stopwords_path.string() : "['custom']";
     index->Open(*checkpoint, ModuleDescriptor{}, MemoryLevel::kInMemory);
     ASSERT_TRUE(
         index->Upsert(7, MakeTextIndexValue(Value::STRING("custom alpha")))
