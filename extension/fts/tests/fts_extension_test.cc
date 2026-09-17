@@ -488,7 +488,7 @@ TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
   auto tokenizer =
       FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"}});
   EXPECT_EQ(tokenizer->Name(),
-            "buildin_stopwords unicode61 remove_diacritics 0");
+            "builtin_stopwords unicode61 remove_diacritics 0");
 }
 
 TEST(JiebaFTSTokenizerTest, NormalizesAsciiAndSkipsPunctuation) {

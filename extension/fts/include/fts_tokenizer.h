@@ -56,7 +56,7 @@ class FTSTokenizer {
 
 class BuiltinFTSTokenizer final : public FTSTokenizer {
  public:
-  static constexpr std::string_view kName{"buildin_stopwords"};
+  static constexpr std::string_view kName{"builtin_stopwords"};
 
   explicit BuiltinFTSTokenizer(std::string builtin_name);
 
