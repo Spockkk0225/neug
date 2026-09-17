@@ -121,7 +121,7 @@ The `WITH` clause accepts the following case-sensitive option names:
 | `jieba_dict` | Path to a Jieba user dictionary that supplements the built-in dictionary; valid only when `tokenizer = 'jieba'` | No user dictionary |
 | `prefix` | Space-separated token lengths for prefix indexes, such as `2 3` | No prefix index |
 
-### Stopwords
+### Stopwords (supported since v0.2.1)
 
 FTS indexes remove English stopwords by default. Set `stopwords` to `english`
 to select the built-in 670-word English stopword list explicitly, to `jieba`
@@ -143,7 +143,8 @@ WITH (stopwords = ['a', 'custom']);
 ```
 
 Stopwords are applied consistently while indexing documents and parsing
-queries.
+queries. Index checkpoints created by earlier versions remain compatible and
+are treated as `stopwords = 'none'`.
 
 ### Tokenizers
 
