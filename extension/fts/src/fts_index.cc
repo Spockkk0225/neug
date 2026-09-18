@@ -119,6 +119,9 @@ std::string ReadStopwordFile(const std::string& path) {
     first = false;
     list << std::quoted(stopword, '\'');
   }
+  if (file.bad()) {
+    THROW_INVALID_ARGUMENT_EXCEPTION("failed to read stopwords file: " + path);
+  }
   list << ']';
   return list.str();
 }
