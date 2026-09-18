@@ -1172,11 +1172,11 @@ TEST(FTSIndexTest, JiebaModePersistsAcrossDumpAndReopen) {
   EXPECT_EQ(result->front().vid, 7u);
 }
 
-TEST(FTSIndexTest, LoadsStopwordsFromFile) {
+TEST(FTSIndexTest, LoadsStopwordsFromCRLFFile) {
   TemporaryDatabaseDirectory directory;
   std::filesystem::create_directories(directory.path());
   const auto stopwords_path = directory.path() / "stop_words.txt";
-  std::ofstream(stopwords_path) << "custom\ndon't\n";
+  std::ofstream(stopwords_path, std::ios::binary) << "custom\r\ndon't\r\n";
 
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeUnopenedIndex("stopword_file_fts");

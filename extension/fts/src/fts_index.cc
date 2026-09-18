@@ -110,6 +110,9 @@ std::string ReadStopwordFile(const std::string& path) {
   list << '[';
   bool first = true;
   for (std::string stopword; std::getline(file, stopword);) {
+    if (!stopword.empty() && stopword.back() == '\r') {
+      stopword.pop_back();
+    }
     if (!first) {
       list << ", ";
     }

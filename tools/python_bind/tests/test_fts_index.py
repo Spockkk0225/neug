@@ -935,9 +935,9 @@ def test_jieba_stopwords(tmp_path):
         db.close()
 
 
-def test_fts_stopwords_file(tmp_path):
+def test_fts_stopwords_crlf_file(tmp_path):
     stopwords_file = tmp_path / "stop_words.txt"
-    stopwords_file.write_text("custom\ndon't\n", encoding="utf-8")
+    stopwords_file.write_bytes(b"custom\r\ndon't\r\n")
     db = Database(db_path=str(tmp_path / "stopwords_file_fts_db"), mode="w")
     connection = db.connect()
     try:
