@@ -781,39 +781,44 @@ void LowercaseASCII(std::string& token) {
 }
 
 std::unordered_set<std::string> ParseStopwordList(std::string_view input) {
-  const auto invalid = [] {
-    throw std::invalid_argument(
-        "Invalid stopwords option: expected 'english', 'jieba', 'none', or a "
-        "list of strings");
+  const auto invalid = [](std::string_view reason) {
+    throw std::invalid_argument("Cannot parse stopwords: " +
+                                std::string(reason));
   };
   std::istringstream stream{std::string(input)};
   char delimiter;
   if (!(stream >> delimiter) || delimiter != '[') {
-    invalid();
+    invalid("expected '[' at the beginning.");
   }
   std::unordered_set<std::string> stopwords;
   stream >> std::ws;
   while (stream.peek() != ']') {
+    if (stream.peek() == std::char_traits<char>::eof()) {
+      invalid("expected ']' at the end.");
+    }
     const auto quote = static_cast<char>(stream.peek());
     if (quote != '\'' && quote != '"') {
-      invalid();
+      invalid("expected a quoted word.");
     }
     std::string stopword;
-    if (!(stream >> std::quoted(stopword, quote)) || stopword.empty()) {
-      invalid();
+    if (!(stream >> std::quoted(stopword, quote))) {
+      invalid("unterminated quoted string.");
+    }
+    if (stopword.empty()) {
+      invalid("stopwords cannot be empty.");
     }
     LowercaseASCII(stopword);
     stopwords.emplace(std::move(stopword));
     stream >> std::ws;
     if (stream.peek() != ']' && (!(stream >> delimiter) || delimiter != ',')) {
-      invalid();
+      invalid("expected words to be separated by ','.");
     }
     stream >> std::ws;
   }
   stream.get();
   stream >> std::ws;
   if (stream.peek() != std::char_traits<char>::eof()) {
-    invalid();
+    invalid("unexpected characters after ']'.");
   }
   return stopwords;
 }

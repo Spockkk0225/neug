@@ -98,13 +98,16 @@ bool IsStopwordList(std::string_view value) {
 
 std::string ReadStopwordFile(const std::string& path) {
   if (!std::filesystem::is_regular_file(path)) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("stopwords file is not available: " +
-                                     path);
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid stopwords option: expected 'english', 'jieba', 'none', a "
+        "list of strings, or a readable file path.");
   }
 
   std::ifstream file(path);
   if (!file) {
-    THROW_INVALID_ARGUMENT_EXCEPTION("failed to open stopwords file: " + path);
+    THROW_INVALID_ARGUMENT_EXCEPTION(
+        "Invalid stopwords option: expected 'english', 'jieba', 'none', a "
+        "list of strings, or a readable file path.");
   }
   std::ostringstream list;
   list << '[';
