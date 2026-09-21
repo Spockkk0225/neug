@@ -933,9 +933,9 @@ void StopwordFTSTokenizer::Register(SQLiteConnection& connection) const {
   static fts5_tokenizer_v2 tokenizer_api{2, StopwordTokenizerCreate,
                                          StopwordTokenizerDelete,
                                          StopwordTokenizerTokenize};
-  const auto create_code = api->xCreateTokenizer_v2(
-      api, kName.data(), context.get(), &tokenizer_api,
-      StopwordTokenizerContext::Destroy);
+  const auto create_code =
+      api->xCreateTokenizer_v2(api, "stopwords", context.get(), &tokenizer_api,
+                               StopwordTokenizerContext::Destroy);
   if (create_code != SQLITE_OK) {
     throw std::runtime_error("Failed to register stopword FTS5 tokenizer: " +
                              std::string(sqlite3_errstr(create_code)));
@@ -965,8 +965,8 @@ BuiltinFTSTokenizer::BuiltinFTSTokenizer(FTSTokenizerConfig config,
     }
     if (!config.empty()) {
       throw std::invalid_argument("Unsupported parameter for tokenizer '" +
-                                  tokenizer_name_ + "': " +
-                                  config.begin()->first);
+                                  tokenizer_name_ +
+                                  "': " + config.begin()->first);
     }
   }
 }
@@ -982,8 +982,7 @@ int BuiltinFTSTokenizer::Tokenize(void*, const char*, int, int,
   return SQLITE_ERROR;
 }
 
-JiebaFTSTokenizer::JiebaFTSTokenizer(FTSTokenizerConfig config,
-                                     std::string&)
+JiebaFTSTokenizer::JiebaFTSTokenizer(FTSTokenizerConfig config, std::string&)
     : mode_(ParseMode(config)),
       dict_trie_(std::istringstream(DecompressJiebaDict(kJiebaDict)),
                  ResolveJiebaUserDictPath(ParseDict(config))),
@@ -992,8 +991,9 @@ JiebaFTSTokenizer::JiebaFTSTokenizer(FTSTokenizerConfig config,
       hmm_segment_(&hmm_model_),
       mix_segment_(&dict_trie_, &hmm_model_) {
   if (!config.empty()) {
-    throw std::invalid_argument("Unsupported parameter for tokenizer 'jieba': " +
-                                config.begin()->first);
+    throw std::invalid_argument(
+        "Unsupported parameter for tokenizer 'jieba': " +
+        config.begin()->first);
   }
 }
 
@@ -1084,9 +1084,8 @@ void JiebaFTSTokenizer::Register(SQLiteConnection& connection) const {
 std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
     FTSTokenizerConfig config, std::string& full_name) {
   if (config.contains("stopwords")) {
-    full_name = std::string(StopwordFTSTokenizer::kName);
-    return std::make_shared<StopwordFTSTokenizer>(std::move(config),
-                                                  full_name);
+    full_name = "stopwords";
+    return std::make_shared<StopwordFTSTokenizer>(std::move(config), full_name);
   }
   auto option = config.find("tokenizer");
   if (option == config.end()) {
@@ -1108,8 +1107,8 @@ std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
   full_name += tokenizer_name;
   if (tokenizer_name == "unicode61" || tokenizer_name == "ascii" ||
       tokenizer_name == "porter" || tokenizer_name == "trigram") {
-    return std::make_shared<BuiltinFTSTokenizer>(
-        std::move(config), full_name, std::move(tokenizer_name));
+    return std::make_shared<BuiltinFTSTokenizer>(std::move(config), full_name,
+                                                 std::move(tokenizer_name));
   }
   if (tokenizer_name == "jieba") {
     return std::make_shared<JiebaFTSTokenizer>(std::move(config), full_name);

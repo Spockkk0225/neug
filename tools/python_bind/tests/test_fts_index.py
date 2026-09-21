@@ -1039,9 +1039,7 @@ def test_porter_wrapper_uses_jieba_for_mixed_text(tmp_path):
     try:
         load_fts(connection, skip_if_unavailable=True)
         create_item_table(connection)
-        connection.execute(
-            "CREATE (:Item {id: 1, text: '向量 embeddings database'});"
-        )
+        connection.execute("CREATE (:Item {id: 1, text: '向量 embeddings database'});")
         connection.execute(
             "CREATE INDEX item_text_fts ON Item USING FTS (text) "
             "WITH (tokenizer = 'porter jieba');"

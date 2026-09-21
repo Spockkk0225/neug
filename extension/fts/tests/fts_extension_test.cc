@@ -129,8 +129,7 @@ class TestCheckpoint {
   std::shared_ptr<Checkpoint> checkpoint_;
 };
 
-std::shared_ptr<const FTSTokenizer> CreateTokenizer(
-    FTSTokenizerConfig config) {
+std::shared_ptr<const FTSTokenizer> CreateTokenizer(FTSTokenizerConfig config) {
   std::string full_name;
   return FTSTokenizer::Create(std::move(config), full_name);
 }
@@ -471,8 +470,7 @@ TEST(FTSTokenizerTest, ValidatesStopwordOptions) {
   EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "jieba"}}));
   EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "none"}}));
   EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "[]"}}));
-  EXPECT_NO_THROW(
-      CreateTokenizer({{"stopwords", "['custom', 'don\\'t']"}}));
+  EXPECT_NO_THROW(CreateTokenizer({{"stopwords", "['custom', 'don\\'t']"}}));
 
   for (const auto& value : {"spanish", "[custom]", "['']", "['custom', 1]"}) {
     EXPECT_THROW(CreateTokenizer({{"stopwords", value}}), std::invalid_argument)
@@ -484,8 +482,9 @@ TEST(FTSIndexTest, AppliesJiebaStopwordWrapper) {
   TemporaryDatabaseDirectory directory;
   TestCheckpoint checkpoint(directory.path().string());
   auto index = MakeOpenedIndex(*checkpoint, "jieba", "mix", "jieba");
-  ASSERT_TRUE(index->Upsert(1, MakeTextIndexValue(Value::STRING("我们是图数据库")))
-                  .ok());
+  ASSERT_TRUE(
+      index->Upsert(1, MakeTextIndexValue(Value::STRING("我们是图数据库")))
+          .ok());
 
   auto stopword = index->Search(MakeQuery("我们"));
   ASSERT_TRUE(stopword.has_value()) << stopword.error().ToString();
@@ -499,10 +498,10 @@ TEST(FTSIndexTest, AppliesJiebaStopwordWrapper) {
 
 TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
   std::string full_name;
-  auto tokenizer = FTSTokenizer::Create(
-      {{"tokenizer", "unicode61 remove_diacritics 0"},
-       {"stopwords", "english"}},
-      full_name);
+  auto tokenizer =
+      FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"},
+                            {"stopwords", "english"}},
+                           full_name);
   EXPECT_EQ(full_name, "stopwords unicode61 remove_diacritics 0");
 
   full_name.clear();
@@ -558,8 +557,8 @@ TEST(JiebaFTSTokenizerTest, PreservesFullwidthLettersAndDigits) {
 
 TEST(JiebaFTSTokenizerTest, SupportsConcurrentReadOnlyTokenization) {
   std::string full_name;
-  auto tokenizer =
-      std::make_shared<const JiebaFTSTokenizer>(FTSTokenizerConfig{}, full_name);
+  auto tokenizer = std::make_shared<const JiebaFTSTokenizer>(
+      FTSTokenizerConfig{}, full_name);
   std::atomic<int> failures{0};
   std::vector<std::thread> threads;
   for (int thread = 0; thread < 8; ++thread) {

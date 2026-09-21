@@ -57,8 +57,6 @@ class FTSTokenizer {
 
 class StopwordFTSTokenizer final : public FTSTokenizer {
  public:
-  static constexpr std::string_view kName{"stopwords"};
-
   StopwordFTSTokenizer(FTSTokenizerConfig config, std::string& full_name);
 
   std::string_view Name() const noexcept override { return "stopwords"; }

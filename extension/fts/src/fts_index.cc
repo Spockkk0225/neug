@@ -253,8 +253,8 @@ void FTSIndex::ParseOptions() {
   }
   tokenizer_config.try_emplace("stopwords", "english");
   full_tokenizer_name_.clear();
-  tokenizer_ = FTSTokenizer::Create(std::move(tokenizer_config),
-                                    full_tokenizer_name_);
+  tokenizer_ =
+      FTSTokenizer::Create(std::move(tokenizer_config), full_tokenizer_name_);
   table_name_ = "neug_fts_" + meta_->name;
 }
 
