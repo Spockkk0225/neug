@@ -721,28 +721,6 @@ int StopwordTokenizerTokenize(Fts5Tokenizer* tokenizer, void* context,
       text_size, locale, locale_size, StopwordTokenFilter);
 }
 
-void RegisterStopwordTokenizer(
-    SQLiteConnection& connection,
-    const std::unordered_set<std::string>& stopwords) {
-  auto* api = connection.GetFTS5API();
-
-  auto context = std::make_unique<StopwordTokenizerContext>();
-  context->api = api;
-  context->stopwords = &stopwords;
-
-  static fts5_tokenizer_v2 tokenizer_api{2, StopwordTokenizerCreate,
-                                         StopwordTokenizerDelete,
-                                         StopwordTokenizerTokenize};
-  const auto create_code = api->xCreateTokenizer_v2(
-      api, BuiltinFTSTokenizer::kName.data(), context.get(), &tokenizer_api,
-      StopwordTokenizerContext::Destroy);
-  if (create_code != SQLITE_OK) {
-    throw std::runtime_error("Failed to register stopword FTS5 tokenizer: " +
-                             std::string(sqlite3_errstr(create_code)));
-  }
-  context.release();
-}
-
 bool IsPunctuationRune(cppjieba::Rune rune) {
   if (rune < 0x80) {
     const auto character = static_cast<unsigned char>(rune);
@@ -910,7 +888,7 @@ int JiebaTokenize(Fts5Tokenizer* tokenizer, void* context, int flags,
 
 }  // namespace
 
-void FTSTokenizer::LoadStopwords(std::string_view stopwords) {
+void StopwordFTSTokenizer::LoadStopwords(std::string_view stopwords) {
   stopwords_.clear();
   if (stopwords == "none") {
     return;
@@ -936,27 +914,109 @@ void FTSTokenizer::LoadStopwords(std::string_view stopwords) {
   stopwords_ = ParseStopwordList(stopwords);
 }
 
-void BuiltinFTSTokenizer::Register(SQLiteConnection& connection) const {
-  RegisterStopwordTokenizer(connection, stopwords_);
+StopwordFTSTokenizer::StopwordFTSTokenizer(FTSTokenizerConfig config,
+                                           std::string& full_name) {
+  auto option = config.find("stopwords");
+  auto stopwords = std::move(option->second);
+  config.erase(option);
+  LoadStopwords(stopwords);
+  base_tokenizer_ = Create(std::move(config), full_name);
 }
 
-BuiltinFTSTokenizer::BuiltinFTSTokenizer(std::string builtin_name)
-    : builtin_name_(std::move(builtin_name)),
-      full_name_(std::string(kName) + " " + builtin_name_) {}
+void StopwordFTSTokenizer::Register(SQLiteConnection& connection) const {
+  base_tokenizer_->Register(connection);
+  auto* api = connection.GetFTS5API();
+  auto context = std::make_unique<StopwordTokenizerContext>();
+  context->api = api;
+  context->stopwords = &stopwords_;
+
+  static fts5_tokenizer_v2 tokenizer_api{2, StopwordTokenizerCreate,
+                                         StopwordTokenizerDelete,
+                                         StopwordTokenizerTokenize};
+  const auto create_code = api->xCreateTokenizer_v2(
+      api, kName.data(), context.get(), &tokenizer_api,
+      StopwordTokenizerContext::Destroy);
+  if (create_code != SQLITE_OK) {
+    throw std::runtime_error("Failed to register stopword FTS5 tokenizer: " +
+                             std::string(sqlite3_errstr(create_code)));
+  }
+  context.release();
+}
+
+int StopwordFTSTokenizer::Tokenize(void*, const char*, int, int,
+                                   FTS5TokenCallback) const {
+  return SQLITE_ERROR;
+}
+
+BuiltinFTSTokenizer::BuiltinFTSTokenizer(FTSTokenizerConfig config,
+                                         std::string& full_name,
+                                         std::string tokenizer_name) {
+  tokenizer_name_ = std::move(tokenizer_name);
+  if (tokenizer_name_ == "porter") {
+    if (!config.contains("tokenizer")) {
+      config.emplace("tokenizer", "unicode61");
+    }
+    base_tokenizer_ = Create(std::move(config), full_name);
+  } else {
+    if (auto option = config.find("tokenizer"); option != config.end()) {
+      full_name += " " + option->second;
+      tokenizer_name_ += " " + option->second;
+      config.erase(option);
+    }
+    if (!config.empty()) {
+      throw std::invalid_argument("Unsupported parameter for tokenizer '" +
+                                  tokenizer_name_ + "': " +
+                                  config.begin()->first);
+    }
+  }
+}
+
+void BuiltinFTSTokenizer::Register(SQLiteConnection& connection) const {
+  if (base_tokenizer_) {
+    base_tokenizer_->Register(connection);
+  }
+}
 
 int BuiltinFTSTokenizer::Tokenize(void*, const char*, int, int,
                                   FTS5TokenCallback) const {
   return SQLITE_ERROR;
 }
 
-JiebaFTSTokenizer::JiebaFTSTokenizer(JiebaMode mode, std::string jieba_dict)
-    : mode_(mode),
+JiebaFTSTokenizer::JiebaFTSTokenizer(FTSTokenizerConfig config,
+                                     std::string&)
+    : mode_(ParseMode(config)),
       dict_trie_(std::istringstream(DecompressJiebaDict(kJiebaDict)),
-                 ResolveJiebaUserDictPath(std::move(jieba_dict))),
+                 ResolveJiebaUserDictPath(ParseDict(config))),
       hmm_model_(std::istringstream(DecompressJiebaDict(kJiebaHmmModel))),
       mp_segment_(&dict_trie_),
       hmm_segment_(&hmm_model_),
-      mix_segment_(&dict_trie_, &hmm_model_) {}
+      mix_segment_(&dict_trie_, &hmm_model_) {
+  if (!config.empty()) {
+    throw std::invalid_argument("Unsupported parameter for tokenizer 'jieba': " +
+                                config.begin()->first);
+  }
+}
+
+JiebaMode JiebaFTSTokenizer::ParseMode(FTSTokenizerConfig& config) {
+  if (config.contains("tokenizer")) {
+    throw std::invalid_argument("Unsupported FTS tokenizer wrapper: jieba");
+  }
+  std::optional<std::string> mode;
+  if (auto option = config.find("jieba_mode"); option != config.end()) {
+    mode = std::move(option->second);
+    config.erase(option);
+  }
+  return ParseJiebaMode(mode);
+}
+
+std::string JiebaFTSTokenizer::ParseDict(FTSTokenizerConfig& config) {
+  std::string jieba_dict;
+  if (auto option = config.find("jieba_dict"); option != config.end()) {
+    jieba_dict = std::move(option->second);
+    config.erase(option);
+  }
+  return jieba_dict;
+}
 
 int JiebaFTSTokenizer::Tokenize(void* context, const char* text, int text_size,
                                 int flags, FTS5TokenCallback emit) const {
@@ -984,9 +1044,6 @@ int JiebaFTSTokenizer::Tokenize(void* context, const char* text, int text_size,
       continue;
     }
     LowercaseASCII(word.word);
-    if (stopwords_.contains(word.word)) {
-      continue;
-    }
     const auto start = static_cast<uint64_t>(word.offset);
     const auto end = start + word.word.size();
     if (start > static_cast<uint64_t>(std::numeric_limits<int>::max()) ||
@@ -1016,7 +1073,7 @@ void JiebaFTSTokenizer::Register(SQLiteConnection& connection) const {
       JiebaTokenize,
   };
   const auto code = api->xCreateTokenizer_v2(
-      api, kName.data(), const_cast<JiebaFTSTokenizer*>(this), &tokenizer_api,
+      api, "jieba", const_cast<JiebaFTSTokenizer*>(this), &tokenizer_api,
       nullptr);
   if (code != SQLITE_OK) {
     throw std::runtime_error("Failed to register Jieba FTS5 tokenizer: " +
@@ -1025,50 +1082,39 @@ void JiebaFTSTokenizer::Register(SQLiteConnection& connection) const {
 }
 
 std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
-    FTSTokenizerConfig config) {
-  // Use English stopwords by default.
-  std::string stopword_option = "english";
-  if (auto option = config.find("stopwords"); option != config.end()) {
-    stopword_option = std::move(option->second);
-    config.erase(option);
+    FTSTokenizerConfig config, std::string& full_name) {
+  if (config.contains("stopwords")) {
+    full_name = std::string(StopwordFTSTokenizer::kName);
+    return std::make_shared<StopwordFTSTokenizer>(std::move(config),
+                                                  full_name);
   }
-  // Use SQLite's unicode61 tokenizer by default.
-  std::string name = "unicode61";
-  if (auto option = config.find("tokenizer"); option != config.end()) {
-    name = std::move(option->second);
-    config.erase(option);
+  auto option = config.find("tokenizer");
+  if (option == config.end()) {
+    option = config.emplace("tokenizer", "unicode61").first;
   }
-
-  static const std::unordered_set<std::string> builtin_names = {
-      "unicode61", "ascii", "porter", "trigram"};
-  const auto base_name = name.substr(0, name.find(' '));
-
-  std::shared_ptr<FTSTokenizer> tokenizer;
-  if (builtin_names.contains(base_name)) {
-    tokenizer = std::make_shared<BuiltinFTSTokenizer>(name);
-  } else if (name == "jieba") {
-    std::optional<std::string> mode;
-    if (auto option = config.find("jieba_mode"); option != config.end()) {
-      mode = std::move(option->second);
-      config.erase(option);
-    }
-    std::string jieba_dict;
-    if (auto option = config.find("jieba_dict"); option != config.end()) {
-      jieba_dict = std::move(option->second);
-      config.erase(option);
-    }
-    tokenizer = std::make_shared<JiebaFTSTokenizer>(ParseJiebaMode(mode),
-                                                    std::move(jieba_dict));
+  auto& name = option->second;
+  const auto first = name.find_first_not_of(' ');
+  name.erase(0, first);
+  const auto separator = name.find(' ');
+  auto tokenizer_name = name.substr(0, separator);
+  if (separator == std::string::npos) {
+    config.erase(option);
   } else {
-    throw std::invalid_argument("Unsupported FTS tokenizer: " + name);
+    name.erase(0, name.find_first_not_of(' ', separator));
   }
-
-  if (!config.empty()) {
-    throw std::invalid_argument("Unsupported parameter for tokenizer '" + name +
-                                "': " + config.begin()->first);
+  if (!full_name.empty()) {
+    full_name += ' ';
   }
-  tokenizer->LoadStopwords(stopword_option);
-  return tokenizer;
+  full_name += tokenizer_name;
+  if (tokenizer_name == "unicode61" || tokenizer_name == "ascii" ||
+      tokenizer_name == "porter" || tokenizer_name == "trigram") {
+    return std::make_shared<BuiltinFTSTokenizer>(
+        std::move(config), full_name, std::move(tokenizer_name));
+  }
+  if (tokenizer_name == "jieba") {
+    return std::make_shared<JiebaFTSTokenizer>(std::move(config), full_name);
+  }
+  throw std::invalid_argument("Unsupported FTS tokenizer: " + tokenizer_name);
 }
 
 }  // namespace neug::fts_ext

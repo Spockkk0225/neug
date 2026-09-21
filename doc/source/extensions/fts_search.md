@@ -167,6 +167,11 @@ Supported tokenizers are:
 - `jieba` performs Chinese word segmentation using cppjieba and loads the
   built-in small dictionary and HMM model.
 
+`porter` is a tokenizer wrapper and supports nesting another tokenizer. It uses
+`porter unicode61` by default. It can also be configured as `porter jieba`, in
+which case Jieba segments the Chinese and English text before the Porter
+algorithm is applied to the English tokens.
+
 All tokenizers are case-insensitive, and all tokens are converted to lowercase.
 
 The Jieba tokenizer supports three modes:

@@ -1033,6 +1033,27 @@ def test_jieba_tokenizer_modes_segment_chinese(
         db.close()
 
 
+def test_porter_wrapper_uses_jieba_for_mixed_text(tmp_path):
+    db = Database(db_path=str(tmp_path / "porter_jieba_fts_db"), mode="w")
+    connection = db.connect()
+    try:
+        load_fts(connection, skip_if_unavailable=True)
+        create_item_table(connection)
+        connection.execute(
+            "CREATE (:Item {id: 1, text: '向量 embeddings database'});"
+        )
+        connection.execute(
+            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+            "WITH (tokenizer = 'porter jieba');"
+        )
+
+        assert [row[0] for row in search(connection, "向量")] == [1]
+        assert [row[0] for row in search(connection, "embedding")] == [1]
+    finally:
+        connection.close()
+        db.close()
+
+
 def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
     user_dict = tmp_path / "user.dict.utf8"
     user_dict.write_text("万圣节\n", encoding="utf-8")
