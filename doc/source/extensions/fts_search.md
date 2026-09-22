@@ -150,8 +150,8 @@ is read only when the index is created. Its contents are stored in the index
 checkpoint, so the original file is not required when reopening the database.
 
 Stopwords are applied consistently while indexing documents and parsing
-queries. Index checkpoints created by earlier versions remain compatible and
-are treated as `stopwords = 'none'`.
+queries. Index checkpoints created with NeuG v0.2.0 remain compatible and are
+treated as `stopwords = 'none'`.
 
 ### Tokenizers
 

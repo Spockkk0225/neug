@@ -498,7 +498,11 @@ TEST(FTSIndexTest, AppliesJiebaStopwordWrapper) {
 
 TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
   std::string full_name;
-  auto tokenizer =
+  auto tokenizer = FTSTokenizer::Create({{"stopwords", "none"}}, full_name);
+  EXPECT_EQ(full_name, "unicode61");
+
+  full_name.clear();
+  tokenizer =
       FTSTokenizer::Create({{"tokenizer", "unicode61 remove_diacritics 0"},
                             {"stopwords", "english"}},
                            full_name);

@@ -1083,9 +1083,14 @@ void JiebaFTSTokenizer::Register(SQLiteConnection& connection) const {
 
 std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
     FTSTokenizerConfig config, std::string& full_name) {
-  if (config.contains("stopwords")) {
-    full_name = "stopwords";
-    return std::make_shared<StopwordFTSTokenizer>(std::move(config), full_name);
+  if (auto option = config.find("stopwords"); option != config.end()) {
+    if (option->second == "none") {
+      config.erase(option);
+    } else {
+      full_name = "stopwords";
+      return std::make_shared<StopwordFTSTokenizer>(std::move(config),
+                                                    full_name);
+    }
   }
   auto option = config.find("tokenizer");
   if (option == config.end()) {
