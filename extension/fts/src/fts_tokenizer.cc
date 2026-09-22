@@ -1106,6 +1106,9 @@ std::shared_ptr<const FTSTokenizer> FTSTokenizer::Create(
     config.erase(option);
   } else {
     name.erase(0, name.find_first_not_of(' ', separator));
+    if (name.empty()) {
+      config.erase(option);
+    }
   }
   if (!full_name.empty()) {
     full_name += ' ';

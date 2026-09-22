@@ -519,6 +519,13 @@ TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
   EXPECT_EQ(full_name, "stopwords porter jieba");
 }
 
+TEST(FTSTokenizerTest, IgnoresTokenizerSpecWhitespace) {
+  std::string full_name;
+  static_cast<void>(FTSTokenizer::Create(
+      {{"tokenizer", "  porter   jieba  "}}, full_name));
+  EXPECT_EQ(full_name, "porter jieba");
+}
+
 TEST(FTSTokenizerTest, RejectsJiebaAsTokenizerWrapper) {
   try {
     static_cast<void>(CreateTokenizer({{"tokenizer", "jieba porter"}}));
