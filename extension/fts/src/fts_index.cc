@@ -347,16 +347,30 @@ void FTSIndex::PrepareStatements() {
                          " MATCH ?1 AND index_filter(?2, rowid) "
                          "ORDER BY score DESC, "
                          "rowid ASC LIMIT ?3;";
+  auto unfiltered_search_asc_sql =
+      "SELECT rowid, " + score + " AS score FROM " + table_name_ +
+      " WHERE " + table_name_ +
+      " MATCH ?1 ORDER BY score ASC, rowid ASC LIMIT ?3;";
+  auto unfiltered_search_desc_sql =
+      "SELECT rowid, " + score + " AS score FROM " + table_name_ +
+      " WHERE " + table_name_ +
+      " MATCH ?1 ORDER BY score DESC, rowid ASC LIMIT ?3;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_asc_statement_ = read_connection_->Prepare(search_asc_sql);
   *search_desc_statement_ = read_connection_->Prepare(search_desc_sql);
+  *unfiltered_search_asc_statement_ =
+      read_connection_->Prepare(unfiltered_search_asc_sql);
+  *unfiltered_search_desc_statement_ =
+      read_connection_->Prepare(unfiltered_search_desc_sql);
 }
 
 void FTSIndex::FinalizeStatements() {
   *append_statements_ = SQLiteStatement{};
   *search_asc_statement_ = SQLiteStatement{};
   *search_desc_statement_ = SQLiteStatement{};
+  *unfiltered_search_asc_statement_ = SQLiteStatement{};
+  *unfiltered_search_desc_statement_ = SQLiteStatement{};
 }
 
 void FTSIndex::Open(Checkpoint& ckp, const ModuleDescriptor& descriptor,
@@ -413,6 +427,8 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
   write_connection_ = std::make_shared<SQLiteConnection>();
   search_asc_statement_ = std::make_shared<SQLiteStatement>();
   search_desc_statement_ = std::make_shared<SQLiteStatement>();
+  unfiltered_search_asc_statement_ = std::make_shared<SQLiteStatement>();
+  unfiltered_search_desc_statement_ = std::make_shared<SQLiteStatement>();
   append_statements_ = std::make_shared<SQLiteStatement>();
   try {
     if (has_persisted_path) {
@@ -452,6 +468,8 @@ void FTSIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
 
   std::scoped_lock lock(search_asc_statement_->mutex(),
                         search_desc_statement_->mutex(),
+                        unfiltered_search_asc_statement_->mutex(),
+                        unfiltered_search_desc_statement_->mutex(),
                         append_statements_->mutex());
   FinalizeStatements();
   try {
@@ -506,6 +524,9 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   cloned->write_connection_ = write_connection_;
   cloned->search_asc_statement_ = search_asc_statement_;
   cloned->search_desc_statement_ = search_desc_statement_;
+  cloned->unfiltered_search_asc_statement_ = unfiltered_search_asc_statement_;
+  cloned->unfiltered_search_desc_statement_ =
+      unfiltered_search_desc_statement_;
   cloned->append_statements_ = append_statements_;
   cloned->runtime_file_ = runtime_file_;
   cloned->runtime_path_ = runtime_path_;
@@ -616,13 +637,26 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
         }
       }
       index_filter = std::make_unique<ScalarFilter>(std::move(allowed));
-    } else {
+    } else if (index_id_accessor_->GetVisibleLimit() <
+                   index_id_accessor_->GetNextIndexID() ||
+               !index_id_accessor_->GetDeletedIndexIDs().empty()) {
       index_filter = std::make_unique<MVCCFilter>(*index_id_accessor_);
     }
 
-    const auto& search_statement =
-        fts_params->order == FTSScoreOrder::kAscending ? search_asc_statement_
-                                                       : search_desc_statement_;
+    std::shared_ptr<SQLiteStatement> search_statement;
+    if (fts_params->order == FTSScoreOrder::kAscending) {
+      if (index_filter) {
+        search_statement = search_asc_statement_;
+      } else {
+        search_statement = unfiltered_search_asc_statement_;
+      }
+    } else {
+      if (index_filter) {
+        search_statement = search_desc_statement_;
+      } else {
+        search_statement = unfiltered_search_desc_statement_;
+      }
+    }
     std::lock_guard lock(search_statement->mutex());
     search_statement->Reset();
     std::vector<std::string> physical_column_names;
@@ -642,8 +676,8 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     }
     const auto filtered_query =
         AddFTS5ColumnFilter(physical_column_names, fts_params->query_string);
-    // Query parameters: ?1 query string, ?2 index filter, ?3 top-k, and
-    // ?4... per-column weights.
+    // Query parameters: ?1 query string, ?2 index filter (filtered statements
+    // only), ?3 top-k, and ?4... per-column weights.
     search_statement->BindText(1, filtered_query);
     for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
       const auto& property_name = meta_->schema.columns[i].property_name;
@@ -652,8 +686,10 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
           static_cast<int>(i + 4),
           weight == fts_params->weights.end() ? 0.0 : weight->second);
     }
-    search_statement->BindPointer(2, index_filter.release(), "IndexFilter",
-                                  DestroyIndexFilter);
+    if (index_filter) {
+      search_statement->BindPointer(2, index_filter.release(), "IndexFilter",
+                                    DestroyIndexFilter);
+    }
     search_statement->BindInt64(
         3,
         fts_params->limit
