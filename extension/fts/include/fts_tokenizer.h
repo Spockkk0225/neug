@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -38,6 +39,19 @@ enum class JiebaMode { kMp, kHmm, kMix };
 using FTS5TokenCallback = int (*)(void*, int, const char*, int, int, int);
 
 using FTSTokenizerConfig = std::unordered_map<std::string, std::string>;
+
+// Enables heterogeneous lookup with std::string_view without constructing a
+// temporary std::string.
+struct TransparentStringHash {
+  using is_transparent = void;
+
+  size_t operator()(std::string_view value) const noexcept {
+    return std::hash<std::string_view>{}(value);
+  }
+};
+
+using StopwordSet = std::unordered_set<std::string, TransparentStringHash,
+                                       std::equal_to<>>;
 
 class FTSTokenizer {
  public:
@@ -67,7 +81,7 @@ class StopwordFTSTokenizer final : public FTSTokenizer {
  private:
   void LoadStopwords(std::string_view stopwords);
 
-  std::unordered_set<std::string> stopwords_;
+  StopwordSet stopwords_;
 };
 
 class BuiltinFTSTokenizer final : public FTSTokenizer {

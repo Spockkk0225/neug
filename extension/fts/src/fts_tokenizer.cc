@@ -638,7 +638,7 @@ constexpr std::string_view kEnglishStopwords[] = {
 
 struct StopwordTokenizerContext {
   fts5_api* api{};
-  const std::unordered_set<std::string>* stopwords{};
+  const StopwordSet* stopwords{};
 
   static void Destroy(void* context) noexcept {
     delete static_cast<StopwordTokenizerContext*>(context);
@@ -648,20 +648,21 @@ struct StopwordTokenizerContext {
 struct StopwordTokenizer {
   fts5_tokenizer_v2 base_api{};
   Fts5Tokenizer* base_tokenizer{};
-  const std::unordered_set<std::string>* stopwords{};
+  const StopwordSet* stopwords{};
 };
 
 struct StopwordFilterContext {
   void* output_context;
   FTS5TokenCallback emit;
-  const std::unordered_set<std::string>* stopwords;
+  const StopwordSet* stopwords;
 };
 
 int StopwordTokenFilter(void* context, int token_flags, const char* token,
                         int token_size, int start, int end) noexcept {
   const auto* filter = static_cast<const StopwordFilterContext*>(context);
   try {
-    if (filter->stopwords->contains(std::string(token, token_size))) {
+    const std::string_view token_view(token, static_cast<size_t>(token_size));
+    if (filter->stopwords->contains(token_view)) {
       return SQLITE_OK;
     }
     return filter->emit(filter->output_context, token_flags, token, token_size,
@@ -758,7 +759,7 @@ void LowercaseASCII(std::string& token) {
   }
 }
 
-std::unordered_set<std::string> ParseStopwordList(std::string_view input) {
+StopwordSet ParseStopwordList(std::string_view input) {
   const auto invalid = [](std::string_view reason) {
     throw std::invalid_argument("Cannot parse stopwords: " +
                                 std::string(reason));
@@ -768,7 +769,7 @@ std::unordered_set<std::string> ParseStopwordList(std::string_view input) {
   if (!(stream >> delimiter) || delimiter != '[') {
     invalid("expected '[' at the beginning.");
   }
-  std::unordered_set<std::string> stopwords;
+  StopwordSet stopwords;
   stream >> std::ws;
   while (stream.peek() != ']') {
     if (stream.peek() == std::char_traits<char>::eof()) {
