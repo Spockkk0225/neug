@@ -521,8 +521,8 @@ TEST(FTSTokenizerTest, BuildsBuiltinWrapperSpec) {
 
 TEST(FTSTokenizerTest, IgnoresTokenizerSpecWhitespace) {
   std::string full_name;
-  static_cast<void>(FTSTokenizer::Create(
-      {{"tokenizer", "  porter   jieba  "}}, full_name));
+  static_cast<void>(
+      FTSTokenizer::Create({{"tokenizer", "  porter   jieba  "}}, full_name));
   EXPECT_EQ(full_name, "porter jieba");
 }
 

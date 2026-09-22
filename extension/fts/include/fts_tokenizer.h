@@ -50,8 +50,8 @@ struct TransparentStringHash {
   }
 };
 
-using StopwordSet = std::unordered_set<std::string, TransparentStringHash,
-                                       std::equal_to<>>;
+using StopwordSet =
+    std::unordered_set<std::string, TransparentStringHash, std::equal_to<>>;
 
 class FTSTokenizer {
  public:
