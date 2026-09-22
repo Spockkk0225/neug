@@ -41,29 +41,47 @@
 namespace neug::fts_ext {
 namespace {
 
-struct IndexFilter {
-  const IndexIDAccessor* accessor{nullptr};
-  std::unordered_set<index_id_t> allowed;
-  bool use_scalar_filter{false};
+class IndexFilter {
+ public:
+  virtual ~IndexFilter() = default;
+  virtual bool operator()(index_id_t index_id) const = 0;
+};
 
-  bool Accepts(index_id_t index_id) const {
-    if (use_scalar_filter) {
-      return allowed.contains(index_id);
-    }
-    return accessor->GetVIDByIndexID(index_id) != INVALID_VID;
+class ScalarFilter final : public IndexFilter {
+ public:
+  explicit ScalarFilter(std::unordered_set<index_id_t> allowed)
+      : allowed_(std::move(allowed)) {}
+
+  bool operator()(index_id_t index_id) const override {
+    return allowed_.contains(index_id);
   }
+
+ private:
+  std::unordered_set<index_id_t> allowed_;
+};
+
+class MVCCFilter final : public IndexFilter {
+ public:
+  explicit MVCCFilter(const IndexIDAccessor& accessor) : accessor_(accessor) {}
+
+  bool operator()(index_id_t index_id) const override {
+    return accessor_.GetVIDByIndexID(index_id) != INVALID_VID;
+  }
+
+ private:
+  const IndexIDAccessor& accessor_;
 };
 
 void DestroyIndexFilter(void* filter) {
   delete static_cast<IndexFilter*>(filter);
 }
 
-void FTSFilter(sqlite3_context* result, int, sqlite3_value** arguments) {
+void ApplyIndexFilter(sqlite3_context* result, int, sqlite3_value** arguments) {
   const auto* filter = static_cast<const IndexFilter*>(
       sqlite3_value_pointer(arguments[0], "IndexFilter"));
   const auto index_id =
       static_cast<index_id_t>(sqlite3_value_int64(arguments[1]));
-  sqlite3_result_int(result, filter->Accepts(index_id) ? 1 : 0);
+  sqlite3_result_int(result, (*filter)(index_id) ? 1 : 0);
 }
 
 // Help users locate the character that caused an FTS tokenizer parsing error.
@@ -409,7 +427,8 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
     }
     read_connection_->Open(runtime_path_);
     tokenizer_->Register(*read_connection_);
-    read_connection_->RegisterScalarFunction("index_filter", 2, FTSFilter);
+    read_connection_->RegisterScalarFunction("index_filter", 2,
+                                             ApplyIndexFilter);
     PrepareStatements();
   } catch (...) {
     FinalizeStatements();
@@ -586,17 +605,19 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     RETURN_ERROR(Status::RuntimeError("FTS index is not open"));
   }
   try {
-    auto index_filter = std::make_unique<IndexFilter>();
-    index_filter->accessor = index_id_accessor_.get();
-    index_filter->use_scalar_filter = fts_params->use_scalar_filter;
+    std::unique_ptr<IndexFilter> index_filter;
     if (fts_params->use_scalar_filter) {
-      index_filter->allowed.reserve(fts_params->scalar_filter.size());
+      std::unordered_set<index_id_t> allowed;
+      allowed.reserve(fts_params->scalar_filter.size());
       for (auto vid : fts_params->scalar_filter) {
         auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
         if (index_id != INVALID_INDEX_ID) {
-          index_filter->allowed.insert(index_id);
+          allowed.insert(index_id);
         }
       }
+      index_filter = std::make_unique<ScalarFilter>(std::move(allowed));
+    } else {
+      index_filter = std::make_unique<MVCCFilter>(*index_id_accessor_);
     }
 
     const auto& search_statement =
