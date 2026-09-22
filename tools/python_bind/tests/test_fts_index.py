@@ -1033,23 +1033,57 @@ def test_jieba_tokenizer_modes_segment_chinese(
         db.close()
 
 
-def test_porter_wrapper_uses_jieba_for_mixed_text(tmp_path):
-    db = Database(db_path=str(tmp_path / "porter_jieba_fts_db"), mode="w")
+@pytest.mark.parametrize(
+    ("tokenizer", "text", "queries"),
+    [
+        pytest.param(
+            "unicode61", "graph database", ("graph", "database"), id="unicode61"
+        ),
+        pytest.param("ascii", "graph database", ("graph", "database"), id="ascii"),
+        pytest.param("porter", "vector embeddings", ("embedding",), id="porter"),
+        pytest.param("trigram", "graph database", ("ata",), id="trigram"),
+        pytest.param("jieba", "向量数据库", ("向量", "数据库"), id="jieba"),
+        pytest.param(
+            "porter unicode61",
+            "vector embeddings",
+            ("embedding",),
+            id="porter-unicode61",
+        ),
+        pytest.param(
+            "porter jieba",
+            "向量 embeddings database",
+            ("向量", "embedding"),
+            id="porter-jieba",
+        ),
+    ],
+)
+def test_fts_tokenizers_persist_across_checkpoint(tmp_path, tokenizer, text, queries):
+    database_name = tokenizer.replace(" ", "_") + "_checkpoint_fts_db"
+    database_path = str(tmp_path / database_name)
+    db = Database(db_path=database_path, mode="w")
     connection = db.connect()
-    try:
-        load_fts(connection, skip_if_unavailable=True)
-        create_item_table(connection)
-        connection.execute("CREATE (:Item {id: 1, text: '向量 embeddings database'});")
-        connection.execute(
-            "CREATE INDEX item_text_fts ON Item USING FTS (text) "
-            "WITH (tokenizer = 'porter jieba');"
-        )
+    load_fts(connection, skip_if_unavailable=True)
+    create_item_table(connection)
+    connection.execute(
+        "CREATE (:Item {id: 1, text: $text});", parameters={"text": text}
+    )
+    connection.execute(
+        "CREATE INDEX item_text_fts ON Item USING FTS (text) "
+        f"WITH (tokenizer = '{tokenizer}');"
+    )
+    connection.execute("CHECKPOINT;")
+    connection.close()
+    db.close()
 
-        assert [row[0] for row in search(connection, "向量")] == [1]
-        assert [row[0] for row in search(connection, "embedding")] == [1]
+    reopened_db = Database(db_path=database_path, mode="w")
+    reopened_connection = reopened_db.connect()
+    try:
+        load_fts(reopened_connection)
+        for query in queries:
+            assert [row[0] for row in search(reopened_connection, query)] == [1]
     finally:
-        connection.close()
-        db.close()
+        reopened_connection.close()
+        reopened_db.close()
 
 
 def test_jieba_user_dict_extends_builtin_dictionary(tmp_path):
