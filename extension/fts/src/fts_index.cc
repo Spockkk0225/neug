@@ -348,13 +348,11 @@ void FTSIndex::PrepareStatements() {
                          "ORDER BY score DESC, "
                          "rowid ASC LIMIT ?3;";
   auto unfiltered_search_asc_sql =
-      "SELECT rowid, " + score + " AS score FROM " + table_name_ +
-      " WHERE " + table_name_ +
-      " MATCH ?1 ORDER BY score ASC, rowid ASC LIMIT ?3;";
+      "SELECT rowid, " + score + " AS score FROM " + table_name_ + " WHERE " +
+      table_name_ + " MATCH ?1 ORDER BY score ASC, rowid ASC LIMIT ?3;";
   auto unfiltered_search_desc_sql =
-      "SELECT rowid, " + score + " AS score FROM " + table_name_ +
-      " WHERE " + table_name_ +
-      " MATCH ?1 ORDER BY score DESC, rowid ASC LIMIT ?3;";
+      "SELECT rowid, " + score + " AS score FROM " + table_name_ + " WHERE " +
+      table_name_ + " MATCH ?1 ORDER BY score DESC, rowid ASC LIMIT ?3;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_asc_statement_ = read_connection_->Prepare(search_asc_sql);
@@ -466,11 +464,10 @@ void FTSIndex::Dump(Checkpoint& ckp, CheckpointManifest& manifest,
     THROW_RUNTIME_ERROR("FTSIndex::Dump: index is not open");
   }
 
-  std::scoped_lock lock(search_asc_statement_->mutex(),
-                        search_desc_statement_->mutex(),
-                        unfiltered_search_asc_statement_->mutex(),
-                        unfiltered_search_desc_statement_->mutex(),
-                        append_statements_->mutex());
+  std::scoped_lock lock(
+      search_asc_statement_->mutex(), search_desc_statement_->mutex(),
+      unfiltered_search_asc_statement_->mutex(),
+      unfiltered_search_desc_statement_->mutex(), append_statements_->mutex());
   FinalizeStatements();
   try {
     StorageIndex::Dump(ckp, manifest, key);
@@ -525,8 +522,7 @@ std::unique_ptr<Module> FTSIndex::Clone() const {
   cloned->search_asc_statement_ = search_asc_statement_;
   cloned->search_desc_statement_ = search_desc_statement_;
   cloned->unfiltered_search_asc_statement_ = unfiltered_search_asc_statement_;
-  cloned->unfiltered_search_desc_statement_ =
-      unfiltered_search_desc_statement_;
+  cloned->unfiltered_search_desc_statement_ = unfiltered_search_desc_statement_;
   cloned->append_statements_ = append_statements_;
   cloned->runtime_file_ = runtime_file_;
   cloned->runtime_path_ = runtime_path_;
