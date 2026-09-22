@@ -41,6 +41,31 @@
 namespace neug::fts_ext {
 namespace {
 
+struct IndexFilter {
+  const IndexIDAccessor* accessor{nullptr};
+  std::unordered_set<index_id_t> allowed;
+  bool use_scalar_filter{false};
+
+  bool Accepts(index_id_t index_id) const {
+    if (use_scalar_filter) {
+      return allowed.contains(index_id);
+    }
+    return accessor->GetVIDByIndexID(index_id) != INVALID_VID;
+  }
+};
+
+void DestroyIndexFilter(void* filter) {
+  delete static_cast<IndexFilter*>(filter);
+}
+
+void FTSFilter(sqlite3_context* result, int, sqlite3_value** arguments) {
+  const auto* filter = static_cast<const IndexFilter*>(
+      sqlite3_value_pointer(arguments[0], "IndexFilter"));
+  const auto index_id =
+      static_cast<index_id_t>(sqlite3_value_int64(arguments[1]));
+  sqlite3_result_int(result, filter->Accepts(index_id) ? 1 : 0);
+}
+
 // Help users locate the character that caused an FTS tokenizer parsing error.
 std::string EnhanceFTS5Error(const std::string& query,
                              const std::string& error) {
@@ -289,17 +314,21 @@ void FTSIndex::PrepareStatements() {
   for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
     column_list += ", " + QuoteSQLiteIdentifier(FTSPhysicalColumnName(i));
     placeholders += ", ?" + std::to_string(i + 2);
-    weight_placeholders += ", ?" + std::to_string(i + 2);
+    weight_placeholders += ", ?" + std::to_string(i + 4);
   }
   auto append_sql = "INSERT INTO " + table_name_ + "(rowid" + column_list +
                     ") VALUES (?1" + placeholders + ");";
   auto score = "bm25(" + table_name_ + weight_placeholders + ")";
   auto search_asc_sql = "SELECT rowid, " + score + " AS score FROM " +
                         table_name_ + " WHERE " + table_name_ +
-                        " MATCH ?1 ORDER BY score ASC;";
+                        " MATCH ?1 AND index_filter(?2, rowid) "
+                        "ORDER BY score ASC, "
+                        "rowid ASC LIMIT ?3;";
   auto search_desc_sql = "SELECT rowid, " + score + " AS score FROM " +
                          table_name_ + " WHERE " + table_name_ +
-                         " MATCH ?1 ORDER BY score DESC;";
+                         " MATCH ?1 AND index_filter(?2, rowid) "
+                         "ORDER BY score DESC, "
+                         "rowid ASC LIMIT ?3;";
 
   *append_statements_ = write_connection_->Prepare(append_sql);
   *search_asc_statement_ = read_connection_->Prepare(search_asc_sql);
@@ -380,6 +409,7 @@ void FTSIndex::OpenInternal(Checkpoint& ckp, const CheckpointManifest* manifest,
     }
     read_connection_->Open(runtime_path_);
     tokenizer_->Register(*read_connection_);
+    read_connection_->RegisterScalarFunction("index_filter", 2, FTSFilter);
     PrepareStatements();
   } catch (...) {
     FinalizeStatements();
@@ -556,14 +586,15 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     RETURN_ERROR(Status::RuntimeError("FTS index is not open"));
   }
   try {
-    // Convert the streaming scalar filter to a hash set for fast filtering.
-    std::unordered_set<index_id_t> allowed;
+    auto index_filter = std::make_unique<IndexFilter>();
+    index_filter->accessor = index_id_accessor_.get();
+    index_filter->use_scalar_filter = fts_params->use_scalar_filter;
     if (fts_params->use_scalar_filter) {
-      allowed.reserve(fts_params->scalar_filter.size());
+      index_filter->allowed.reserve(fts_params->scalar_filter.size());
       for (auto vid : fts_params->scalar_filter) {
         auto index_id = index_id_accessor_->GetIndexIDByVID(vid);
         if (index_id != INVALID_INDEX_ID) {
-          allowed.insert(index_id);
+          index_filter->allowed.insert(index_id);
         }
       }
     }
@@ -590,14 +621,25 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
     }
     const auto filtered_query =
         AddFTS5ColumnFilter(physical_column_names, fts_params->query_string);
+    // Query parameters: ?1 query string, ?2 index filter, ?3 top-k, and
+    // ?4... per-column weights.
     search_statement->BindText(1, filtered_query);
     for (size_t i = 0; i < meta_->schema.columns.size(); ++i) {
       const auto& property_name = meta_->schema.columns[i].property_name;
       auto weight = fts_params->weights.find(property_name);
       search_statement->BindDouble(
-          static_cast<int>(i + 2),
+          static_cast<int>(i + 4),
           weight == fts_params->weights.end() ? 0.0 : weight->second);
     }
+    search_statement->BindPointer(2, index_filter.release(), "IndexFilter",
+                                  DestroyIndexFilter);
+    search_statement->BindInt64(
+        3,
+        fts_params->limit
+            ? static_cast<int64_t>(std::min<uint64_t>(
+                  *fts_params->limit,
+                  static_cast<uint64_t>(std::numeric_limits<int64_t>::max())))
+            : -1);
 
     std::vector<SearchCandidate> results;
     while (search_statement->Step() == SQLITE_ROW) {
@@ -607,14 +649,6 @@ result<std::vector<SearchCandidate>> FTSIndex::SearchImpl(
         continue;
       }
       const auto index_id = static_cast<index_id_t>(rowid);
-      // Apply the scalar filter.
-      if (fts_params->use_scalar_filter && !allowed.contains(index_id)) {
-        continue;
-      }
-      // Apply the MVCC visibility filter.
-      if (index_id_accessor_->GetVIDByIndexID(index_id) == INVALID_VID) {
-        continue;
-      }
       results.push_back(
           SearchCandidate{index_id, search_statement->ColumnDouble(1)});
       if (fts_params->limit &&
