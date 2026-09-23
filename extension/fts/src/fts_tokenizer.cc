@@ -638,7 +638,7 @@ constexpr std::string_view kEnglishStopwords[] = {
 
 struct StopwordTokenizerContext {
   fts5_api* api{};
-  const StopwordSet* stopwords{};
+  const std::unordered_set<std::string_view>* stopwords{};
 
   static void Destroy(void* context) noexcept {
     delete static_cast<StopwordTokenizerContext*>(context);
@@ -648,13 +648,13 @@ struct StopwordTokenizerContext {
 struct StopwordTokenizer {
   fts5_tokenizer_v2 base_api{};
   Fts5Tokenizer* base_tokenizer{};
-  const StopwordSet* stopwords{};
+  const std::unordered_set<std::string_view>* stopwords{};
 };
 
 struct StopwordFilterContext {
   void* output_context;
   FTS5TokenCallback emit;
-  const StopwordSet* stopwords;
+  const std::unordered_set<std::string_view>* stopwords;
 };
 
 int StopwordTokenFilter(void* context, int token_flags, const char* token,
@@ -759,7 +759,7 @@ void LowercaseASCII(std::string& token) {
   }
 }
 
-StopwordSet ParseStopwordList(std::string_view input) {
+std::vector<std::string> ParseStopwordList(std::string_view input) {
   const auto invalid = [](std::string_view reason) {
     throw std::invalid_argument("Cannot parse stopwords: " +
                                 std::string(reason));
@@ -769,7 +769,7 @@ StopwordSet ParseStopwordList(std::string_view input) {
   if (!(stream >> delimiter) || delimiter != '[') {
     invalid("expected '[' at the beginning.");
   }
-  StopwordSet stopwords;
+  std::vector<std::string> stopwords;
   stream >> std::ws;
   while (stream.peek() != ']') {
     if (stream.peek() == std::char_traits<char>::eof()) {
@@ -787,7 +787,7 @@ StopwordSet ParseStopwordList(std::string_view input) {
       invalid("stopwords cannot be empty.");
     }
     LowercaseASCII(stopword);
-    stopwords.emplace(std::move(stopword));
+    stopwords.emplace_back(std::move(stopword));
     stream >> std::ws;
     if (stream.peek() != ']' && (!(stream >> delimiter) || delimiter != ',')) {
       invalid("expected words to be separated by ','.");
@@ -890,29 +890,32 @@ int JiebaTokenize(Fts5Tokenizer* tokenizer, void* context, int flags,
 }  // namespace
 
 void StopwordFTSTokenizer::LoadStopwords(std::string_view stopwords) {
-  stopwords_.clear();
+  stopword_storage_.clear();
   if (stopwords == "none") {
     return;
   }
   if (stopwords == "english") {
     for (const auto stopword : kEnglishStopwords) {
-      stopwords_.emplace(stopword);
+      stopword_storage_.emplace_back(stopword);
     }
-    return;
-  }
-  if (stopwords == "jieba") {
+  } else if (stopwords == "jieba") {
     std::istringstream stream(DecompressJiebaDict(kJiebaStopwords));
     for (std::string stopword; std::getline(stream, stopword);) {
       if (!stopword.empty() && stopword.back() == '\r') {
         stopword.pop_back();
       }
       if (!stopword.empty()) {
-        stopwords_.emplace(std::move(stopword));
+        stopword_storage_.emplace_back(std::move(stopword));
       }
     }
-    return;
+  } else {
+    stopword_storage_ = ParseStopwordList(stopwords);
   }
-  stopwords_ = ParseStopwordList(stopwords);
+
+  stopwords_.reserve(stopword_storage_.size());
+  for (const auto& stopword : stopword_storage_) {
+    stopwords_.emplace(stopword);
+  }
 }
 
 StopwordFTSTokenizer::StopwordFTSTokenizer(FTSTokenizerConfig config,
