@@ -637,8 +637,8 @@ constexpr std::string_view kEnglishStopwords[] = {
 };
 
 struct StopwordTokenizerContext {
-  fts5_api* api{};
-  const std::unordered_set<std::string_view>* stopwords{};
+  fts5_api* api;
+  const std::unordered_set<std::string_view>& stopwords;
 
   static void Destroy(void* context) noexcept {
     delete static_cast<StopwordTokenizerContext*>(context);
@@ -646,15 +646,15 @@ struct StopwordTokenizerContext {
 };
 
 struct StopwordTokenizer {
-  fts5_tokenizer_v2 base_api{};
-  Fts5Tokenizer* base_tokenizer{};
-  const std::unordered_set<std::string_view>* stopwords{};
+  fts5_tokenizer_v2 base_api;
+  Fts5Tokenizer* base_tokenizer;
+  const std::unordered_set<std::string_view>& stopwords;
 };
 
 struct StopwordFilterContext {
   void* output_context;
   FTS5TokenCallback emit;
-  const std::unordered_set<std::string_view>* stopwords;
+  const std::unordered_set<std::string_view>& stopwords;
 };
 
 int StopwordTokenFilter(void* context, int token_flags, const char* token,
@@ -662,7 +662,7 @@ int StopwordTokenFilter(void* context, int token_flags, const char* token,
   const auto* filter = static_cast<const StopwordFilterContext*>(context);
   try {
     const std::string_view token_view(token, static_cast<size_t>(token_size));
-    if (filter->stopwords->contains(token_view)) {
+    if (filter->stopwords.contains(token_view)) {
       return SQLITE_OK;
     }
     return filter->emit(filter->output_context, token_flags, token, token_size,
@@ -693,12 +693,11 @@ int StopwordTokenizerCreate(void* context, const char** arguments,
     return code;
   }
 
-  auto* tokenizer = new (std::nothrow) StopwordTokenizer();
+  auto* tokenizer = new (std::nothrow)
+      StopwordTokenizer{*base_api, nullptr, tokenizer_context->stopwords};
   if (tokenizer == nullptr) {
     return SQLITE_NOMEM;
   }
-  tokenizer->base_api = *base_api;
-  tokenizer->stopwords = tokenizer_context->stopwords;
   code = tokenizer->base_api.xCreate(base_context, arguments + 1,
                                      argument_count - 1,
                                      &tokenizer->base_tokenizer);
@@ -930,9 +929,8 @@ StopwordFTSTokenizer::StopwordFTSTokenizer(FTSTokenizerConfig config,
 void StopwordFTSTokenizer::Register(SQLiteConnection& connection) const {
   base_tokenizer_->Register(connection);
   auto* api = connection.GetFTS5API();
-  auto context = std::make_unique<StopwordTokenizerContext>();
-  context->api = api;
-  context->stopwords = &stopwords_;
+  auto context = std::unique_ptr<StopwordTokenizerContext>(
+      new StopwordTokenizerContext{api, stopwords_});
 
   static fts5_tokenizer_v2 tokenizer_api{2, StopwordTokenizerCreate,
                                          StopwordTokenizerDelete,
