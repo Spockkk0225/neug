@@ -68,12 +68,8 @@ jobs:
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-x86_64-node \
             sleep infinity
 
-          docker exec -u 0 -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
+          docker exec -u 0 ${{ env.CONTAINER_NAME }} \
             install -o 1001 -g 1001 -m 644 /root/.neug_env /home/neug/.neug_env
-            if [ -n "$EXTENSIONS" ]; then
-              yum install -y libzstd-devel lz4-devel zlib-devel
-            fi
-          '
 
           docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             mkdir -p /home/neug/.local
@@ -94,7 +90,7 @@ jobs:
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make build BUILD_EXTENSIONS="$EXTENSIONS" \
-              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=${{ inputs.build_extensions && 'ON' || 'OFF' }}"
           '
 
       - name: Pack
@@ -175,12 +171,8 @@ jobs:
             neug-registry.cn-hongkong.cr.aliyuncs.com/neug/neug-manylinux:v0.1.3-arm64-node \
             sleep infinity
 
-          docker exec -u 0 -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -ec '
+          docker exec -u 0 ${{ env.CONTAINER_NAME }} \
             install -o 1001 -g 1001 -m 644 /root/.neug_env /home/neug/.neug_env
-            if [ -n "$EXTENSIONS" ]; then
-              yum install -y libzstd-devel lz4-devel zlib-devel
-            fi
-          '
 
           docker exec ${{ env.CONTAINER_NAME }} bash -ec '
             mkdir -p /home/neug/.local
@@ -201,7 +193,7 @@ jobs:
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
             make build BUILD_EXTENSIONS="$EXTENSIONS" \
-              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=${{ inputs.build_extensions && 'ON' || 'OFF' }}"
           '
 
       - name: Pack
