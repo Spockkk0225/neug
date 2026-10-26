@@ -152,10 +152,20 @@ jobs:
         npm publish ./dist/npm-main --access public
 
   publish_extension:
-    name: Publish Extension
+    name: Publish Extension / ${{ matrix.artifact_platform }}
     needs: package
     if: github.repository == 'alibaba/neug' && github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - artifact_platform: linux-x86_64
+            oss_platform: linux_x86_64
+          - artifact_platform: linux-arm64
+            oss_platform: linux_arm64
+          - artifact_platform: osx-arm64
+            oss_platform: osx_arm64
     permissions:
       contents: read
       actions: read
@@ -170,7 +180,7 @@ jobs:
         python-version: '3.13'
     - uses: actions/download-artifact@v4
       with:
-        pattern: extension-packages-linux-x86_64-*
+        pattern: extension-packages-${{ matrix.artifact_platform }}-*
         path: extension_packages
         merge-multiple: true
 
@@ -192,19 +202,19 @@ jobs:
         spec = importlib.util.spec_from_file_location('extensions', 'scripts/publish_extensions_from_wheel.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        # Preserve the original OSS publishing platform; other platforms remain artifacts.
         folder = Path('extension_packages')
         files = {p.name.removeprefix('lib').removesuffix('.neug_extension'):
                  (p, p.with_name(p.name + '.sha256')) for p in folder.glob('*.neug_extension')}
         if not files:
-            raise RuntimeError('No Linux x86_64 extension artifacts')
-        module.upload_artifacts(files, os.environ['RELEASE_TAG'], 'linux_x86_64')
+            raise RuntimeError(f"No extension artifacts for {os.environ['OSS_PLATFORM']}")
+        module.upload_artifacts(files, os.environ['RELEASE_TAG'], os.environ['OSS_PLATFORM'])
         PYCODE
       env:
         OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
         OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
         OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT }}
         OSS_BUCKET_NAME: ${{ secrets.OSS_BUCKET_NAME }}
+        OSS_PLATFORM: ${{ matrix.oss_platform }}
         RELEASE_TAG: ${{ github.event.release.tag_name }}
 
   publish_java:

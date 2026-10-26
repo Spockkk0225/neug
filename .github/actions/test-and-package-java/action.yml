@@ -29,6 +29,17 @@ runs:
       cd tools/python_bind
       python3 -m pytest -sv tests/test_java_driver.py
 
+  - name: Configure Maven Central for Dry-Run
+    if: inputs.package == 'true'
+    uses: actions/setup-java@v4
+    with:
+      java-version: '17'
+      distribution: temurin
+      server-id: central
+      server-username: MAVEN_CENTRAL_USERNAME
+      server-password: MAVEN_CENTRAL_PASSWORD
+      settings-path: ${{ runner.temp }}/neug-maven
+
   - name: Remove SNAPSHOT from Version
     if: inputs.package == 'true'
     working-directory: tools/java_driver
@@ -40,7 +51,7 @@ runs:
     working-directory: tools/java_driver
     shell: bash
     run: |
-      mvn -B deploy -DskipTests \
+      mvn -B -s "$RUNNER_TEMP/neug-maven/settings.xml" deploy -DskipTests \
           -Dgpg.skip=true \
           -DskipPublishing=true \
           -DaltDeploymentRepository=local::default::file://${{ github.workspace }}/tools/java_driver/target/staging

@@ -225,21 +225,6 @@ runs:
       BUILD_NODEJS: ${{ env.BUILD_NODEJS || 'ON' }}
       CMAKE_ARGS: ${{ env.CMAKE_ARGS || '-DBUILD_NODEJS=ON -DCMAKE_PREFIX_PATH=/opt/neug -DOPENSSL_ROOT_DIR=/opt/neug' }}
 
-  - name: Restore Baseline Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.13'
-
-  - name: Restore Baseline Python Binding
-    if: steps.python_versions.outputs.cibw_build != 'cp313-*'
-    shell: bash
-    run: |
-      set -euo pipefail
-      python=$(command -v python3)
-      cmake -S "$GITHUB_WORKSPACE" -B "$GITHUB_WORKSPACE/build" \
-        -DPython_EXECUTABLE="$python" -DPYTHON_EXECUTABLE="$python"
-      cmake --build "$GITHUB_WORKSPACE/build" --target neug_py_bind -j4
-
   - name: Upload Wheel
     if: inputs.upload_artifacts == 'true'
     uses: actions/upload-artifact@v4
