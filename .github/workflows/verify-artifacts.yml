@@ -36,6 +36,13 @@ jobs:
         shell: bash
     steps:
 
+    - name: Fix macOS Hostname Resolution
+      if: runner.os == 'macOS'
+      run: |
+        # Work around https://github.com/actions/runner-images/issues/12562.
+        printf '\n127.0.0.1 %s %s\n' "$(hostname)" "$(hostname -s)" | sudo tee -a /etc/hosts
+        sudo dscacheutil -flushcache
+
     - name: Prepare Independent Linux Test Image
       if: runner.os == 'Linux'
       run: |
