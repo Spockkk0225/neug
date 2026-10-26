@@ -1,7 +1,12 @@
 name: NPM Test
 
 on:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      build_extensions:
+        description: Build and smoke test extensions for npm release packages.
+        type: boolean
+        default: false
   workflow_dispatch: {}
   schedule:
     # Trigger at 22:00 CST (14:00 UTC) every day
@@ -46,6 +51,7 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "x64"]') || 'ubuntu-22.04' }}
     runs-on: ${{ matrix.runner }}
     env:
+      EXTENSIONS: ${{ inputs.build_extensions && 'parquet;httpfs;pattern_matching;vector_search;fts;gds' || '' }}
       CONTAINER_NAME: neug-npm-x86_64-${{ github.run_id }}
     steps:
       - name: checkout
@@ -77,20 +83,26 @@ jobs:
 
       - name: Build
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug" || exit $?
+            if [ -n "$EXTENSIONS" ]; then
+              readelf --dyn-syms --wide build/Release/linux_${{ matrix.arch }}/libneug.so | \
+                awk "/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }"
+            fi
           '
 
       - name: Prepare test data
@@ -114,7 +126,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            node tests/test-shim.js
+            NEUG_RUN_EXTENSION_TESTS=${{ inputs.build_extensions && '1' || '0' }} node tests/test-shim.js
           '
 
       - name: Stop container
@@ -140,6 +152,7 @@ jobs:
             runner: ${{ github.repository == 'alibaba/neug' && fromJSON('["self-hosted", "daily", "linux", "arm64"]') || 'ubuntu-22.04-arm' }}
     runs-on: ${{ matrix.runner }}
     env:
+      EXTENSIONS: ${{ inputs.build_extensions && 'parquet;httpfs;pattern_matching;vector_search;fts;gds' || '' }}
       CONTAINER_NAME: neug-npm-arm64-${{ github.run_id }}
     steps:
       - name: checkout
@@ -171,20 +184,26 @@ jobs:
 
       - name: Build
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make build EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make build BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
           '
 
       - name: Pack
         run: |
-          docker exec ${{ env.CONTAINER_NAME }} bash -c '
+          docker exec -e EXTENSIONS ${{ env.CONTAINER_NAME }} bash -c '
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            make pack EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug"
+            make pack BUILD_EXTENSIONS="$EXTENSIONS" \
+              EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug" || exit $?
+            if [ -n "$EXTENSIONS" ]; then
+              readelf --dyn-syms --wide build/Release/linux_${{ matrix.arch }}/libneug.so | \
+                awk "/_ZNK4neug12StorageIndex14ModuleTypeNameB5cxx11Ev/ { found = 1 } END { exit !found }"
+            fi
           '
 
       - name: Prepare test data
@@ -208,7 +227,7 @@ jobs:
             export PATH=/home/neug/.local/bin:$PATH
             . /home/neug/.neug_env
             cd /project/tools/nodejs_bind
-            node tests/test-shim.js
+            NEUG_RUN_EXTENSION_TESTS=${{ inputs.build_extensions && '1' || '0' }} node tests/test-shim.js
           '
 
       - name: Stop container
