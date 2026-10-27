@@ -123,12 +123,12 @@ pack:  ## Create per-platform npm tarball
 	@$(MAKE) bundle
 	@echo "Packing npm package for platform: $(PREBUILD_PLATFORM)"
 	@cp package.json package.json.orig
-	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@graphscope-neug/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
+	@node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync("package.json")); p.name="@neug-ai/$(OS_TAG)-$(ARCH_TAG)"; p.os=[process.platform]; p.cpu=[process.arch]; fs.writeFileSync("package.json", JSON.stringify(p,null,2)+"\n")'
 	@npm pack && \
 		PACK_RC=$$?; \
 		mv package.json.orig package.json; \
 		exit $$PACK_RC
-	@echo "Package created: graphscope-neug-$(OS_TAG)-$(ARCH_TAG)-*.tgz"
+	@echo "Package created: neug-ai-$(OS_TAG)-$(ARCH_TAG)-*.tgz"
 
 clean:  ## Clean Node.js build artifacts (does NOT touch $(ROOT_BUILD))
 	rm -rf build/

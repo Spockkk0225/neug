@@ -140,7 +140,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-x86_64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-linux-x86_64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-linux-x86_64-*.tgz
           if-no-files-found: error
 
   build_npm_linux_arm64:
@@ -243,7 +243,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-linux-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-linux-arm64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-linux-arm64-*.tgz
           if-no-files-found: error
 
   build_npm_windows_x86_64:
@@ -350,7 +350,7 @@ jobs:
           Copy-Item package.json package.json.ci
           try {
             $package = Get-Content package.json -Raw | ConvertFrom-Json
-            $package.name = "@graphscope-neug/windows-x86_64"
+            $package.name = "@neug-ai/windows-x86_64"
             $package | Add-Member -NotePropertyName os -NotePropertyValue @("win32") -Force
             $package | Add-Member -NotePropertyName cpu -NotePropertyValue @("x64") -Force
             $package | ConvertTo-Json -Depth 100 | Set-Content package.json
@@ -364,7 +364,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-windows-x86_64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-windows-x86_64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-windows-x86_64-*.tgz
           if-no-files-found: error
 
   build_npm_macos_aarch64:
@@ -433,7 +433,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nodejs-osx-arm64-${{ github.run_id }}
-          path: ./tools/nodejs_bind/graphscope-neug-osx-arm64-*.tgz
+          path: ./tools/nodejs_bind/neug-ai-osx-arm64-*.tgz
           if-no-files-found: error
 
   # Nightly and manually dispatched builds verify the packages from this run
