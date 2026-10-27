@@ -88,7 +88,7 @@ stage:
 
 bundle:  ## Collect linked third-party libraries and replace build-machine RPATHs
 ifeq ($(UNAME_S),Darwin)
-	delocate-path --sanitize-rpaths -v -L .dylibs "$(PLATFORM_DIR)"
+	delocate-path --sanitize-rpaths -v -L neug/.dylibs "$(PLATFORM_DIR)"
 	@find "$(PLATFORM_DIR)" -type f \( -name '*.node' -o -name '*.dylib' -o -name '*.neug_extension' \) \
 		-exec otool -L {} \;
 else
