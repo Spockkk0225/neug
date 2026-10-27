@@ -10,10 +10,6 @@ on:
         description: Target version; defaults to NEUG_VERSION and must match the npm package.
         required: false
         type: string
-      test_npm_token:
-        description: Use an invalid npm token to test OSS upload before npm authentication fails.
-        type: boolean
-        default: false
 
 # Keep one publish run per tag.
 concurrency:
@@ -118,7 +114,7 @@ jobs:
       # Validate package metadata, unpack platform packages, then publish all packages.
       - name: Publish npm packages
         env:
-          NODE_AUTH_TOKEN: ${{ inputs.test_npm_token && 'invalid-token-for-oss-test' || secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
         run: |
           set -euo pipefail
