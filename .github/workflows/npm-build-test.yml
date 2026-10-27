@@ -248,6 +248,7 @@ jobs:
 
   build_npm_windows_x86_64:
     needs: format_check
+    if: github.event_name != 'pull_request'
     runs-on: windows-2022
     steps:
       - name: checkout
