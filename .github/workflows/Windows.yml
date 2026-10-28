@@ -125,9 +125,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ env.VCPKG_ROOT }}/installed
-        key: vcpkg-${{ env.VCPKG_TARGET_TRIPLET }}-${{ inputs.extensions != '' && 'openssl-curl-zlib-zstd-lz4' || 'openssl' }}-${{ hashFiles('CMakeLists.txt') }}
+        key: vcpkg-${{ env.VCPKG_TARGET_TRIPLET }}-${{ inputs.extensions != '' && 'openssl-curl-zlib-zstd-lz4-sqlite3' || 'openssl' }}-${{ hashFiles('CMakeLists.txt') }}
         restore-keys: |
-          vcpkg-${{ env.VCPKG_TARGET_TRIPLET }}-${{ inputs.extensions != '' && 'openssl-curl-zlib-zstd-lz4' || 'openssl' }}-
+          vcpkg-${{ env.VCPKG_TARGET_TRIPLET }}-${{ inputs.extensions != '' && 'openssl-curl-zlib-zstd-lz4-sqlite3' || 'openssl' }}-
 
     - name: Install Windows OpenSSL
       shell: pwsh
@@ -143,7 +143,7 @@ jobs:
       run: |
         $PSNativeCommandUseErrorActionPreference = $true
         $ErrorActionPreference = "Stop"
-        $packages = @("curl", "zlib", "zstd", "lz4")
+        $packages = @("curl", "zlib", "zstd", "lz4", "sqlite3[core,fts5]")
         foreach ($pkg in $packages) {
           & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install "${pkg}:$env:VCPKG_TARGET_TRIPLET"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -212,7 +212,9 @@ jobs:
             }
           }
         }
+        # Temporary debug logging to investigate why CMake cannot find the installed zstd dependency.
         cmake -S . -B "$env:GITHUB_WORKSPACE/build" -G Ninja `
+          --debug-find-var=NEUG_CARQUET_ZSTD_INCLUDE_DIR,NEUG_CARQUET_ZSTD_LIBRARY `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_C_COMPILER_LAUNCHER=sccache `
           -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
