@@ -9,6 +9,7 @@ on:
         default: all
         options:
           - all
+          - macos-windows
           - linux-x86_64
           - linux-arm64
           - osx-arm64
@@ -49,7 +50,7 @@ jobs:
     secrets: inherit
 
   macos:
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
+    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows' || contains(inputs.platforms, 'osx-')
     uses: ./.github/workflows/OSX.yml
     with:
       extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
@@ -58,10 +59,10 @@ jobs:
     secrets: inherit
 
   windows:
-    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'windows-')
+    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows' || contains(inputs.platforms, 'windows-')
     uses: ./.github/workflows/Windows.yml
     with:
-      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
+      architectures: ${{ ((inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows') && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
       # vector_search is not supported by the current Windows build.
       extensions: parquet;httpfs;gds;pattern_matching;fts
       python_versions: '3.13'
