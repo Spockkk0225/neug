@@ -291,8 +291,10 @@ jobs:
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
-        export CC="ccache gcc"
-        export CXX="ccache g++"
+        export CC=gcc
+        export CXX=g++
+        export CMAKE_C_COMPILER_LAUNCHER=ccache
+        export CMAKE_CXX_COMPILER_LAUNCHER=ccache
         export CMAKE_ARGS="${CMAKE_ARGS:-} -DBUILD_NODEJS=ON"
         export BUILD_EXTENSIONS="$EXTENSION_LIST"
         if [ -n "$EXTENSION_LIST" ]; then
