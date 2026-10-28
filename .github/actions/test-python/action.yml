@@ -134,19 +134,13 @@ runs:
   - name: Install PyArrow
     shell: bash
     working-directory: tools/python_bind
-    run: python -m pip install pyarrow==18.0.0
+    run: python -m pip install pyarrow==24.0.0
 
   - name: Run PyArrow Related Test
     shell: bash
     working-directory: tools/python_bind
     run: |
       python -m pytest -sv --exitfirst tests/test_to_arrow.py
-
-  - name: Uninstall PyArrow
-    if: always()
-    shell: bash
-    working-directory: tools/python_bind
-    run: python -m pip uninstall -y pyarrow
 
   - name: Test CLI Tool
     shell: bash
@@ -161,8 +155,7 @@ runs:
     working-directory: tools/python_bind
     run: |
       python -m pip install -r requirements.txt
-      python -m pip install -r requirements_dev.txt
-      python -m pip install pyarrow==24.0.0
+      python -m pip install -r "${PYTHON_DEV_REQUIREMENTS:-requirements_dev.txt}"
 
   - name: Run Parquet Python Test
     if: contains(format(';{0};', inputs.extensions), ';parquet;')

@@ -218,7 +218,7 @@ runs:
       COMPLETE_WHEELHOUSE: ${{ github.workspace }}/complete_wheelhouse
       CIBW_BUILD: ${{ steps.python_versions.outputs.cibw_build }}
       BUILD_TYPE: RELEASE
-      BUILD_TEST: 'ON'
+      BUILD_TEST: ${{ env.BUILD_TEST || 'ON' }}
       BUILD_EXECUTABLES: 'ON'
       BUILD_HTTP_SERVER: ${{ env.BUILD_HTTP_SERVER || 'ON' }}
       WITH_MIMALLOC: ${{ env.WITH_MIMALLOC || 'OFF' }}

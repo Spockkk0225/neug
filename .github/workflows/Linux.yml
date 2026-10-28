@@ -190,7 +190,35 @@ jobs:
     - name: Install Dependencies (Linux)
       shell: bash
       run: |
-        sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+        sudo apt-get update && sudo apt-get install -y ccache libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+
+    - name: Cache CCache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-main-
+          ${{ runner.os }}-${{ runner.arch }}-ccache-
+
+    - name: Setup CCache
+      shell: bash
+      run: |
+        mkdir -p ~/.cache/ccache
+        CCACHE_DIR=~/.cache/ccache
+        {
+          echo "CCACHE_DIR=$CCACHE_DIR"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPRESS=true"
+          echo "CCACHE_COMPRESSLEVEL=6"
+          echo "CCACHE_MAXSIZE=5G"
+        } >> "$GITHUB_ENV"
+        ccache --set-config=base_dir=${GITHUB_WORKSPACE}
+        ccache --set-config=compiler_check=content
+        ccache --set-config=compression=true
+        ccache --max-size=5G
+        ccache --zero-stats
 
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -250,6 +278,8 @@ jobs:
           echo "Warning: .neug_env not found in any known location"
         fi
         cd ${GITHUB_WORKSPACE}/
+        echo "CCache stats before build"
+        ccache --show-stats
         export CI=ON
         export BUILD_TYPE=RELEASE
         export CMAKE_BUILD_PARALLEL_LEVEL=$(printf '%s\n' "$(nproc)" 32 | awk 'NR==1 || $0<min { min=$0 } END { print min }')
@@ -261,8 +291,8 @@ jobs:
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $USER:$USER /opt/neug-install/
-        export CC=gcc
-        export CXX=g++
+        export CC="ccache gcc"
+        export CXX="ccache g++"
         export CMAKE_ARGS="${CMAKE_ARGS:-} -DBUILD_NODEJS=ON"
         export BUILD_EXTENSIONS="$EXTENSION_LIST"
         if [ -n "$EXTENSION_LIST" ]; then
@@ -273,6 +303,8 @@ jobs:
         make clean
         make requirements
         make build
+        echo "CCache stats after build"
+        ccache --show-stats
         cd "$GITHUB_WORKSPACE/tools/nodejs_bind"
         make stage BUILD_TYPE=Release
       env:
