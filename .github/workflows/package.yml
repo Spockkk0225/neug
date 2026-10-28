@@ -14,7 +14,6 @@ on:
           - linux-x86_64
           - linux-arm64
           - osx-arm64
-          - osx-x86_64
           - windows-x86_64
           - windows-arm64
           - java
@@ -327,7 +326,6 @@ jobs:
     if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
     uses: ./.github/workflows/OSX.yml
     with:
-      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'osx-x86_64' && '["x86_64"]' || '["arm64"]' }}
       packages: '["wheel","npm"]'
       python_versions: ${{ inputs.python_versions || 'all' }}
       extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
@@ -376,7 +374,7 @@ jobs:
     needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
     uses: ./.github/workflows/verify-artifacts.yml
     with:
-      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","osx-x86_64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
+      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
       python_versions: ${{ needs.initialize.outputs.python_versions }}
     secrets: inherit
 

@@ -20,7 +20,12 @@ runs:
   - name: Set Environments
     shell: bash
     run: |
-      echo "PYTEST_ADDOPTS=${{ inputs.coverage == 'true' && '--cov=neug --cov-report=term --cov-append --cov-config=.coveragerc' || '' }}" >> "$GITHUB_ENV"
+      pytest_options="${{ inputs.coverage == 'true' && '--cov=neug --cov-report=term --cov-append --cov-config=.coveragerc' || '' }}"
+      # Temporary thread dumps to investigate hangs in macOS CI.
+      if [[ "$RUNNER_OS" == macOS ]]; then
+        pytest_options="$pytest_options -o faulthandler_timeout=120"
+      fi
+      echo "PYTEST_ADDOPTS=$pytest_options" >> "$GITHUB_ENV"
 
   - name: Run Python Test
     shell: bash

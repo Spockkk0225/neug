@@ -261,7 +261,7 @@ runs:
     if: inputs.extensions != '' && inputs.upload_artifacts == 'true'
     uses: actions/upload-artifact@v4
     with:
-      name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform == 'macos-x86_64' && 'osx-x86_64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}
+      name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}
       path: |
         extension_packages/*.neug_extension
         extension_packages/*.sha256

@@ -12,7 +12,6 @@ on:
           - linux-x86_64
           - linux-arm64
           - osx-arm64
-          - osx-x86_64
           - windows-x86_64
           - windows-arm64
   schedule:
@@ -53,7 +52,6 @@ jobs:
     if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
     uses: ./.github/workflows/OSX.yml
     with:
-      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["arm64","x86_64"]' || inputs.platforms == 'osx-x86_64' && '["x86_64"]' || '["arm64"]' }}
       extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
       packages: '["wheel","npm"]'
       python_versions: '3.13'

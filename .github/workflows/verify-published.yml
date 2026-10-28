@@ -16,7 +16,6 @@ on:
           - linux-x86_64
           - linux-arm64
           - osx-arm64
-          - osx-x86_64
           - windows-x86_64
           - windows-arm64
       node_version:
@@ -48,9 +47,9 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        platform: ${{ fromJSON(inputs.platforms == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","osx-x86_64","windows-x86_64","windows-arm64"]' || format('["{0}"]', inputs.platforms)) }}
+        platform: ${{ fromJSON(inputs.platforms == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || format('["{0}"]', inputs.platforms)) }}
     container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
-    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || matrix.platform == 'windows-arm64' && 'windows-11-arm' || matrix.platform == 'windows-x86_64' && 'windows-2022' || matrix.platform == 'osx-x86_64' && 'macos-15-intel' || 'macos-15' }}
+    runs-on: ${{ matrix.platform == 'linux-x86_64' && 'ubuntu-22.04' || matrix.platform == 'linux-arm64' && 'ubuntu-22.04-arm' || matrix.platform == 'windows-arm64' && 'windows-11-arm' || matrix.platform == 'windows-x86_64' && 'windows-2022' || 'macos-15' }}
     env:
       # vector_search is not supported by the current Windows build.
       EXTENSIONS: ${{ startsWith(matrix.platform, 'windows-') && 'parquet;httpfs;gds;pattern_matching;fts' || 'parquet;httpfs;gds;pattern_matching;vector_search;fts' }}

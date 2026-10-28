@@ -35,10 +35,6 @@ on:
       - doc/source/tutorials/**
   workflow_call:
     inputs:
-      architectures:
-        description: 'JSON array of macOS build architectures: x86_64 and arm64.'
-        type: string
-        default: '["arm64"]'
       extensions:
         description: 'Semicolon-separated BUILD_EXTENSIONS names to compile and test, chosen from parquet, pattern_matching, gds, httpfs, vector_search, fts.'
         type: string
@@ -88,8 +84,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        arch: ${{ fromJSON(inputs.architectures || '["arm64"]') }}
-    runs-on: ${{ matrix.arch == 'x86_64' && 'macos-15-intel' || 'macos-15' }}
+        arch: [arm64]
+    runs-on: macos-15
     steps:
     # ========================================
     # Phase 1: Prepare & Build
@@ -98,9 +94,10 @@ jobs:
     - name: Fix macOS Hostname Resolution
       shell: bash
       run: |
-        # Work around https://github.com/actions/runner-images/issues/12562.
-        printf '\n127.0.0.1 %s %s\n' "$(hostname)" "$(hostname -s)" | sudo tee -a /etc/hosts
-        sudo dscacheutil -flushcache
+        # Work around https://github.com/actions/runner-images/issues/14568.
+        # Use a non-.local hostname mapped to loopback to avoid the 35s resolver stall.
+        sudo scutil --set HostName neug-ci
+        printf '\n127.0.0.1 neug-ci\n' | sudo tee -a /etc/hosts
 
     - name: Checkout
       id: checkout

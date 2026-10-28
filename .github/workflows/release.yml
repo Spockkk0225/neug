@@ -120,7 +120,6 @@ jobs:
         linux_x86_64=(dist/npm/neug-ai-linux-x86_64-*.tgz)
         linux_arm64=(dist/npm/neug-ai-linux-arm64-*.tgz)
         osx_arm64=(dist/npm/neug-ai-osx-arm64-*.tgz)
-        osx_x86_64=(dist/npm/neug-ai-osx-x86_64-*.tgz)
         windows_x86_64=(dist/npm/neug-ai-windows-x86_64-*.tgz)
         windows_arm64=(dist/npm/neug-ai-windows-arm64-*.tgz)
 
@@ -145,11 +144,6 @@ jobs:
           exit 1
         fi
 
-        if [ ! -f "${osx_x86_64[0]}" ]; then
-          echo "No osx-x86_64 npm tarball found."
-          exit 1
-        fi
-
         if [ ! -f "${linux_arm64[0]}" ]; then
           echo "No linux-arm64 npm tarball found."
           exit 1
@@ -166,24 +160,20 @@ jobs:
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
           "${windows_arm64[0]}" '@neug-ai/windows-arm64' "$VERSION"
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
-          "${osx_x86_64[0]}" '@neug-ai/osx-x86_64' "$VERSION"
-        python3 tools/nodejs_bind/scripts/validate_npm_version.py \
           "${linux_arm64[0]}" '@neug-ai/linux-arm64' "$VERSION"
         python3 tools/nodejs_bind/scripts/validate_npm_version.py \
           dist/npm-main '@neug-ai/neug' "$VERSION" \
           --optional-dependency '@neug-ai/linux-x86_64' \
           --optional-dependency '@neug-ai/linux-arm64' \
           --optional-dependency '@neug-ai/osx-arm64' \
-          --optional-dependency '@neug-ai/osx-x86_64' \
           --optional-dependency '@neug-ai/windows-x86_64' \
           --optional-dependency '@neug-ai/windows-arm64'
 
         # npm publish must run from package directories, so unpack platform tarballs first.
-        mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/linux-arm64 dist/npm-packages/osx-x86_64 dist/npm-packages/osx-arm64 dist/npm-packages/windows-x86_64 dist/npm-packages/windows-arm64
+        mkdir -p dist/npm-packages/linux-x86_64 dist/npm-packages/linux-arm64 dist/npm-packages/osx-arm64 dist/npm-packages/windows-x86_64 dist/npm-packages/windows-arm64
         tar -xzf "${linux_x86_64[0]}" -C dist/npm-packages/linux-x86_64
         tar -xzf "${linux_arm64[0]}" -C dist/npm-packages/linux-arm64
         tar -xzf "${osx_arm64[0]}" -C dist/npm-packages/osx-arm64
-        tar -xzf "${osx_x86_64[0]}" -C dist/npm-packages/osx-x86_64
         tar -xzf "${windows_x86_64[0]}" -C dist/npm-packages/windows-x86_64
         tar -xzf "${windows_arm64[0]}" -C dist/npm-packages/windows-arm64
 
@@ -195,7 +185,6 @@ jobs:
         npm publish ./dist/npm-packages/osx-arm64/package --access public
         npm publish ./dist/npm-packages/windows-x86_64/package --access public
         npm publish ./dist/npm-packages/windows-arm64/package --access public
-        npm publish ./dist/npm-packages/osx-x86_64/package --access public
         npm publish ./dist/npm-main --access public
 
   publish_extension:
@@ -213,8 +202,6 @@ jobs:
             oss_platform: linux_arm64
           - artifact_platform: osx-arm64
             oss_platform: osx_arm64
-          - artifact_platform: osx-x86_64
-            oss_platform: osx_x86_64
           - artifact_platform: windows-x86_64
             oss_platform: win_x86_64
           - artifact_platform: windows-arm64
