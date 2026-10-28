@@ -251,8 +251,10 @@ jobs:
         export CMAKE_INSTALL_PREFIX=/opt/neug-install/
         sudo mkdir -p /opt/neug-install
         sudo chown -R $(id -u):$(id -g) /opt/neug-install/
-        export CC="ccache clang"
-        export CXX="ccache clang++"
+        export CC=clang
+        export CXX=clang++
+        export CMAKE_C_COMPILER_LAUNCHER=ccache
+        export CMAKE_CXX_COMPILER_LAUNCHER=ccache
         export WITH_MIMALLOC=ON
         export MACOSX_DEPLOYMENT_TARGET=11.0
         export CMAKE_GENERATOR="Unix Makefiles"
