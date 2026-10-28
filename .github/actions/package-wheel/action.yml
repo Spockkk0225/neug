@@ -77,21 +77,21 @@ runs:
       echo "cibw_build=$CIBW" >> "$GITHUB_OUTPUT"
 
   - name: Setup Wheel Python 3.8
-    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp38-*')
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp38-*'))
     uses: actions/setup-python@v5
     with:
       python-version: '3.8'
       allow-prereleases: true
 
   - name: Setup Wheel Python 3.9
-    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp39-*')
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp39-*'))
     uses: actions/setup-python@v5
     with:
       python-version: '3.9'
       allow-prereleases: true
 
   - name: Setup Wheel Python 3.10
-    if: steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp310-*')
+    if: inputs.artifact_platform != 'windows-arm64' && (steps.python_versions.outputs.cibw_build == '' || contains(steps.python_versions.outputs.cibw_build, 'cp310-*'))
     uses: actions/setup-python@v5
     with:
       python-version: '3.10'
@@ -146,12 +146,17 @@ runs:
       versions=""
       for pattern in $patterns; do
         if [[ "$pattern" =~ ^cp3([0-9]+)- ]]; then
+          # Native Windows ARM64 CPython starts at 3.11.
+          if [ "$RUNNER_OS" = Windows ] && [ "$RUNNER_ARCH" = ARM64 ] && (( 10#${BASH_REMATCH[1]} < 11 )); then
+            continue
+          fi
           versions="$versions 3.${BASH_REMATCH[1]}"
         else
           echo "Unsupported Python build pattern: $pattern" >&2
           exit 1
         fi
       done
+      test -n "$versions"
       for version in $versions; do
         if [ "$RUNNER_OS" = Linux ]; then
           abi="cp${version/./}"
@@ -256,7 +261,7 @@ runs:
     if: inputs.extensions != '' && inputs.upload_artifacts == 'true'
     uses: actions/upload-artifact@v4
     with:
-      name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}
+      name: extension-packages-${{ inputs.artifact_platform == 'macos-arm64' && 'osx-arm64' || inputs.artifact_platform == 'macos-x86_64' && 'osx-x86_64' || inputs.artifact_platform }}-${{ steps.packages.outputs.version }}
       path: |
         extension_packages/*.neug_extension
         extension_packages/*.sha256

@@ -14,6 +14,10 @@ on:
           - linux-x86_64
           - linux-arm64
           - osx-arm64
+          - osx-x86_64
+          - windows-x86_64
+          - windows-arm64
+          - java
       python_versions:
         description: Python version for wheel packaging.
         type: choice
@@ -48,9 +52,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ========================================
-  # Resolve the selected Python versions for wheel builds and artifact verification.
-  # ========================================
   initialize:
     name: Initialize
     runs-on: ubuntu-22.04
@@ -82,8 +83,8 @@ jobs:
         echo "python_versions=$python_versions" >> "$GITHUB_OUTPUT"
 
   # ========================================
-  # Use cibuildwheel to independently build wheels in manylinux2014 (neug-manylinux:v0.2.0)
-  # for x86_64 and ARM64, run smoke tests, then split and upload core wheels and extensions.
+  # For Linux - Wheel, build standardized wheels with cibuildwheel in dedicated
+  # manylinux2014 images (neug-manylinux:v0.2.0-<arch>).
   # ========================================
   linux_wheel:
     needs: initialize
@@ -195,13 +196,15 @@ jobs:
         retention-days: 7
 
   # ========================================
-  # Build and test Node.js packages in manylinux_2_28 (neug-manylinux:v0.1.3-<arch>-node)
-  # for x86_64 and ARM64, reusing the shared data preparation, tests, packaging, and upload steps.
+  # For Linux - NPM, manually build packages in dedicated manylinux_2_28 images
+  # (neug-manylinux:v0.1.3-<arch>-node).
   # ========================================
-  linux_node:
+  linux-npm:
     needs: initialize
+    env:
+      EXTENSIONS: parquet;httpfs;pattern_matching;vector_search;fts;gds
     if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'linux-')
-    name: Linux Node.js / ${{ matrix.arch }}
+    name: Linux NPM / ${{ matrix.arch }}
     strategy:
       fail-fast: true
       matrix:
@@ -240,7 +243,7 @@ jobs:
         source /home/neug/.neug_env
         set -u
         cd tools/nodejs_bind
-        make build BUILD_TYPE=Release JOBS="$(nproc)" EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
+        make build BUILD_EXTENSIONS="$EXTENSIONS" BUILD_TYPE=Release JOBS="$(nproc)" EXTRA_CMAKE_FLAGS="-DCMAKE_PREFIX_PATH=/opt/neug/ -DOPENSSL_ROOT_DIR=/opt/neug -DNEUG_PACKAGE_BUILD=ON"
 
     # ========================================
     # Phase 2: Prepare Test Data
@@ -259,20 +262,90 @@ jobs:
       uses: ./.github/actions/test-and-package-nodejs
       with:
         package: 'true'
+        extensions: ${{ env.EXTENSIONS }}
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: 'true'
 
+    # Keep the manylinux_2_28/C++11-ABI extensions separate from wheel-built extensions.
+    - name: Extract Node.js Extension Packages
+      id: extensions
+      shell: bash
+      env:
+        ARTIFACT_PLATFORM: linux-${{ matrix.arch }}
+        EXTENSIONS: ${{ env.EXTENSIONS }}
+        RELEASE_TAG: ${{ github.event.release.tag_name }}
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        import hashlib
+        import json
+        import os
+        import shutil
+        import tarfile
+        from pathlib import Path
+
+        platform = os.environ['ARTIFACT_PLATFORM'].replace('-', '_')
+        packages = list(Path('tools/nodejs_bind').glob(
+            f"neug-ai-{os.environ['ARTIFACT_PLATFORM']}-*.tgz"))
+        if len(packages) != 1:
+            raise RuntimeError(f'Expected one npm package, got {packages}')
+        output = Path('npm_extension_packages')
+        output.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(packages[0], 'r:gz') as archive:
+            metadata = json.load(archive.extractfile('package/package.json'))
+            expected_name = '@neug-ai/' + os.environ['ARTIFACT_PLATFORM']
+            version = os.environ['RELEASE_TAG'].removeprefix('v') or Path('NEUG_VERSION').read_text().strip()
+            if metadata['name'] != expected_name or metadata['version'] != version:
+                raise RuntimeError(f'Package does not match release {version}: {metadata}')
+            for extension in os.environ['EXTENSIONS'].split(';'):
+                member = (f'package/build/Release/{platform}/extension/{extension}/'
+                          f'lib{extension}.neug_extension')
+                target = output / f'lib{extension}-cxx11abi.neug_extension'
+                with archive.extractfile(member) as source, target.open('wb') as destination:
+                    shutil.copyfileobj(source, destination)
+                target.with_name(target.name + '.sha256').write_text(
+                    hashlib.sha256(target.read_bytes()).hexdigest(), encoding='utf-8')
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as outputs:
+            outputs.write(f"version={metadata['version']}\n")
+        PY
+
+    - name: Upload Node.js Extension Packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: extension-packages-linux-${{ matrix.arch }}-cxx11abi-${{ steps.extensions.outputs.version }}
+        path: |
+          npm_extension_packages/*.neug_extension
+          npm_extension_packages/*.sha256
+        if-no-files-found: error
+        retention-days: 7
+
   # ========================================
-  # Reuse OSX.yml on macOS ARM64 for the full build, tests, packaging, and artifact upload.
+  # For MacOS, package directly in the development environment through OSX.yml.
   # ========================================
   macos:
     needs: initialize
     if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'osx-')
     uses: ./.github/workflows/OSX.yml
     with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'osx-x86_64' && '["x86_64"]' || '["arm64"]' }}
       packages: '["wheel","npm"]'
       python_versions: ${{ inputs.python_versions || 'all' }}
       extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
+      upload_artifacts: true
+    secrets: inherit
+
+  # ========================================
+  # For Windows, package directly in the development environment through Windows.yml.
+  # ========================================
+  windows:
+    needs: initialize
+    if: (inputs.platforms || 'all') == 'all' || contains(inputs.platforms, 'windows-')
+    uses: ./.github/workflows/Windows.yml
+    with:
+      architectures: ${{ (inputs.platforms || 'all') == 'all' && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
+      python_versions: ${{ inputs.python_versions || 'all' }}
+      # vector_search is not supported by the current Windows build.
+      extensions: parquet;httpfs;gds;pattern_matching;fts
       upload_artifacts: true
     secrets: inherit
 
@@ -299,11 +372,11 @@ jobs:
   # Download the uploaded artifacts in independent environments and run package smoke tests.
   # ========================================
   verify:
-    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux_node.result == 'success' || needs.linux_node.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') }}
-    needs: [initialize, linux_wheel, linux_node, macos, java]
+    if: ${{ !cancelled() && needs.initialize.result == 'success' && (needs.linux_wheel.result == 'success' || needs.linux_wheel.result == 'skipped') && (needs.linux-npm.result == 'success' || needs.linux-npm.result == 'skipped') && (needs.macos.result == 'success' || needs.macos.result == 'skipped') && (needs.windows.result == 'success' || needs.windows.result == 'skipped') && (needs.java.result == 'success' || needs.java.result == 'skipped') }}
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java]
     uses: ./.github/workflows/verify-artifacts.yml
     with:
-      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64"]' || format('["{0}"]', inputs.platforms) }}
+      platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","osx-x86_64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
       python_versions: ${{ needs.initialize.outputs.python_versions }}
     secrets: inherit
 
@@ -312,7 +385,7 @@ jobs:
   # ========================================
   complete:
     if: always()
-    needs: [initialize, linux_wheel, linux_node, macos, java, verify]
+    needs: [initialize, linux_wheel, linux-npm, macos, windows, java, verify]
     runs-on: ubuntu-22.04
     steps:
 

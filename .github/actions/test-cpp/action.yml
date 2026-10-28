@@ -15,8 +15,9 @@ runs:
   steps:
 
   - name: Run C++ Test
-    if: inputs.platform != 'windows'
     shell: bash
+    env:
+      TEST_PLATFORM: ${{ inputs.platform }}
     run: |
       set -euo pipefail
       export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
@@ -41,38 +42,20 @@ runs:
       ctest --output-on-failure -R test_connection -V
       ctest --output-on-failure -R test_request -V
       ctest --output-on-failure -R test_indexer -V
-      ctest --output-on-failure -R test_db_svc -V
+      # test_db_svc links brpc/bthread and is not built on Windows.
+      if [[ "$TEST_PLATFORM" != windows ]]; then
+        ctest --output-on-failure -R test_db_svc -V
+      fi
       ctest --output-on-failure -R temporary_graph_test -V
       ctest --output-on-failure -R copy_temp_test -V
-      ctest --output-on-failure -R 'ap_index_test|tp_index_test|e2e_index_test' -V
+      # e2e_index_test uses fork/waitpid and is not built on Windows.
+      if [[ "$TEST_PLATFORM" == windows ]]; then
+        ctest --output-on-failure -R 'ap_index_test|tp_index_test' -V
+      else
+        ctest --output-on-failure -R 'ap_index_test|tp_index_test|e2e_index_test' -V
+      fi
 
-  - name: Run C++ Tests
-    if: inputs.platform == 'windows'
-    env:
-      MODERN_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
-      COMPREHENSIVE_GRAPH_DATA_DIR: ${{ github.workspace }}/example_dataset/comprehensive_graph
-      FLEX_DATA_DIR: ${{ github.workspace }}/example_dataset/modern_graph
-      TEST_PATH: ${{ github.workspace }}/tests
-      TEST_RESOURCE: ${{ github.workspace }}/tests/compiler
-    shell: pwsh
-    run: |
-      $ErrorActionPreference = "Stop"
-      $PSNativeCommandUseErrorActionPreference = $true
-      cd "$env:GITHUB_WORKSPACE/build"
-      $failed = @()
-      ctest -R transaction_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'transaction_test' }
-      ctest -R graph_view_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'graph_view_test' }
-      ctest -R execution_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'execution_test' }
-      ctest -R test_vertex_table -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_vertex_table' }
-      ctest -R test_mmap_container -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_mmap_container' }
-      ctest -R logical_delete_test -V; if ($LASTEXITCODE -ne 0) { $failed += 'logical_delete_test' }
-      ctest -R test_request -V; if ($LASTEXITCODE -ne 0) { $failed += 'test_request' }
-      if ($failed.Count -gt 0) {
-        Write-Error "The following C++ test suites failed: $($failed -join ', ')"
-        exit 1
-      }
-      Write-Host "All C++ test suites passed."
-
+  # Windows disables BUILD_EXAMPLES, so simple_example is not built.
   - name: Test Examples
     if: inputs.platform != 'windows'
     shell: bash
@@ -80,6 +63,8 @@ runs:
       set -euo pipefail
       ${GITHUB_WORKSPACE}/build/examples/cpp/simple_example
 
+  # E2E tests require databases prepared by bulk_loader, which is currently
+  # disabled by the Windows core build configuration.
   - name: Run E2E modern_graph Test
     if: inputs.platform != 'windows'
     shell: bash
@@ -91,9 +76,9 @@ runs:
 
   - name: Run E2E Tinysnb Test
     if: inputs.platform != 'windows'
+    shell: bash
     env:
       GS_TEST_DIR: ${{ github.workspace }}/gstest
-    shell: bash
     run: |
       set -euo pipefail
       cd ${GITHUB_WORKSPACE}/tests/e2e
@@ -105,9 +90,9 @@ runs:
 
   - name: Run E2E LSQB Test
     if: inputs.platform != 'windows'
+    shell: bash
     env:
       GS_TEST_DIR: ${{ github.workspace }}/gstest
-    shell: bash
     run: |
       set -euo pipefail
       cd ${GITHUB_WORKSPACE}/tests/e2e
@@ -132,6 +117,7 @@ runs:
       ./scripts/run_e2e_test.sh neug_ap_test comprehensive_graph /tmp/comprehensive_graph path,dynamic_param
       ./scripts/run_e2e_test.sh neug_tp_test comprehensive_graph /tmp/comprehensive_graph path
 
+  # The SDK installation check currently uses the POSIX sudo/make toolchain.
   - name: Test Installation C++ SDK
     if: inputs.platform != 'windows'
     shell: bash
@@ -166,10 +152,11 @@ runs:
       test -f "${GITHUB_WORKSPACE}/build/extension/test_out_of_tree/libtest_out_of_tree.neug_extension"
 
   - name: Run Extension C++ Test
-    if: inputs.platform != 'windows' && inputs.extensions != ''
+    if: inputs.extensions != ''
+    shell: bash
     env:
       EXTENSIONS: ${{ inputs.extensions }}
-    shell: bash
+      TEST_PLATFORM: ${{ inputs.platform }}
     run: |
       set -euo pipefail
       export MODERN_GRAPH_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/modern_graph
@@ -180,13 +167,15 @@ runs:
       if [[ ";$EXTENSIONS;" == *";parquet;"* ]]; then
         ctest --output-on-failure -R '^(parquet_extension_test|parquet_carquet_.*)$'
       fi
-      if [[ ";$EXTENSIONS;" == *";httpfs;"* ]]; then
+      # CMake excludes httpfs, pattern_matching, and fts C++ suites on Windows
+      # because those test sources use POSIX APIs; parquet tests are built there.
+      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";httpfs;"* ]]; then
         ctest --output-on-failure -R httpfs_extension_test -V
       fi
-      if [[ ";$EXTENSIONS;" == *";pattern_matching;"* ]]; then
+      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";pattern_matching;"* ]]; then
         ctest --output-on-failure -R pattern_matching_extension_test -V
       fi
-      if [[ ";$EXTENSIONS;" == *";fts;"* ]]; then
+      if [[ "$TEST_PLATFORM" != windows && ";$EXTENSIONS;" == *";fts;"* ]]; then
         ctest --output-on-failure -R fts_extension_test -V
       fi
       export FLEX_DATA_DIR=${GITHUB_WORKSPACE}/example_dataset/tinysnb

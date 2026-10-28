@@ -30,7 +30,7 @@ on:
   workflow_call:
     inputs:
       architectures:
-        description: 'JSON array of macOS build architectures; only arm64 is supported.'
+        description: 'JSON array of macOS build architectures: x86_64 and arm64.'
         type: string
         default: '["arm64"]'
       extensions:
@@ -78,8 +78,12 @@ jobs:
 
   build_and_test:
     needs: format_check
-    name: macOS ARM64
-    runs-on: macos-15
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON(inputs.architectures || '["arm64"]') }}
+    runs-on: ${{ matrix.arch == 'x86_64' && 'macos-15-intel' || 'macos-15' }}
     steps:
     # ========================================
     # Phase 1: Prepare & Build
@@ -255,8 +259,9 @@ jobs:
     - name: Run Node.js Tests and Optional Packaging
       uses: ./.github/actions/test-and-package-nodejs
       with:
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
         package: ${{ contains(fromJSON(inputs.packages || '[]'), 'npm') || steps.changes.outputs.npm == 'true' }}
-        artifact_platform: osx-arm64
+        artifact_platform: osx-${{ matrix.arch }}
         upload_artifacts: ${{ inputs.upload_artifacts }}
 
     # ========================================
@@ -277,8 +282,8 @@ jobs:
       if: contains(fromJSON(inputs.packages || '[]'), 'wheel') || steps.changes.outputs.wheel == 'true'
       uses: ./.github/actions/package-wheel
       with:
-        artifact_platform: macos-arm64
-        oss_platform: osx_arm64
+        artifact_platform: macos-${{ matrix.arch }}
+        oss_platform: osx_${{ matrix.arch }}
         python_versions: ${{ inputs.python_versions || '3.13' }}
         extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
         upload_artifacts: ${{ inputs.upload_artifacts }}

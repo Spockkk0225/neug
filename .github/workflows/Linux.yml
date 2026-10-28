@@ -312,6 +312,7 @@ jobs:
     - name: Run Node.js Tests and Optional Packaging
       uses: ./.github/actions/test-and-package-nodejs
       with:
+        extensions: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
         package: ${{ contains(fromJSON(inputs.packages || '[]'), 'npm') || steps.changes.outputs.npm == 'true' }}
         artifact_platform: linux-${{ matrix.arch }}
         upload_artifacts: ${{ inputs.upload_artifacts }}

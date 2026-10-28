@@ -1,11 +1,23 @@
 name: Windows
 
 on:
-  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/Windows.yml
+      - src/compiler/common/windows_utils.cpp
+      - include/neug/compiler/common/windows_utils.h
+      - scripts/install_deps.ps1
+      - scripts/build_windows.bat
   workflow_call:
     inputs:
+      extensions:
+        description: 'Semicolon-separated Windows-compatible extensions to build and test.'
+        type: string
+        default: ''
       architectures:
-        description: 'JSON array of Windows build architectures; only x86_64 is supported.'
+        description: 'JSON array of Windows build architectures: x86_64 and arm64.'
         type: string
         default: '["x86_64"]'
       python_versions:
@@ -38,9 +50,14 @@ jobs:
 
   build_and_test:
     needs: format_check
-    name: Windows x86_64
-    runs-on: windows-2022
+    name: Windows ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: ${{ fromJSON(inputs.architectures || '["x86_64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-2022' }}
     env:
+      VCPKG_TARGET_TRIPLET: ${{ matrix.arch == 'arm64' && 'arm64-windows-static-md' || 'x64-windows-static-md' }}
       CMAKE_BUILD_PARALLEL_LEVEL: '4'
       PYTHONPATH: ${{ github.workspace }}/tools/python_bind
       GS_TEST_DIR: ${{ github.workspace }}/gstest
@@ -48,8 +65,9 @@ jobs:
       BUILD_TYPE: RELEASE
       BUILD_TEST: 'ON'
       BUILD_EXECUTABLES: 'ON'
-      BUILD_HTTP_SERVER: 'OFF'
-      BUILD_NODEJS: 'OFF'
+      BUILD_EXTENSIONS: ${{ inputs.extensions }}
+      BUILD_HTTP_SERVER: 'ON'
+      BUILD_NODEJS: 'ON'
       WITH_MIMALLOC: 'OFF'
       ENABLE_BACKTRACES: 'OFF'
       NEUG_PACKAGE_BUILD: 'ON'
@@ -80,14 +98,14 @@ jobs:
     - name: Setup MSVC Developer Command Prompt
       uses: ilammy/msvc-dev-cmd@v1
       with:
-        arch: x64
+        arch: ${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
 
     - name: Install Windows OpenSSL
       shell: pwsh
       run: |
         $PSNativeCommandUseErrorActionPreference = $true
         $ErrorActionPreference = "Stop"
-        & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install openssl:x64-windows-static-md
+        & "$env:VCPKG_INSTALLATION_ROOT/vcpkg.exe" install "openssl:$env:VCPKG_TARGET_TRIPLET"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     - name: Install Python Test Dependencies
@@ -98,18 +116,48 @@ jobs:
         python -m pip install -r tools/python_bind/requirements.txt -r tools/python_bind/requirements_dev.txt pytest-cov coverage wheel setuptools pybind11
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.0.0'
+        cache: npm
+        cache-dependency-path: tools/nodejs_bind/package-lock.json
+
+    - name: Install Node.js Build Dependencies
+      shell: bash
+      run: |
+        set -euo pipefail
+        npm ci --prefix tools/nodejs_bind
+        node_version=$(node -p "process.versions.node")
+        node_arch=$(node -p "process.arch")
+        node_dev_dir="$(cygpath -u "$RUNNER_TEMP")/node-v${node_version}-dev"
+        mkdir -p "$node_dev_dir"
+        curl -fsSL "https://nodejs.org/dist/v${node_version}/node-v${node_version}-headers.tar.gz" -o "$RUNNER_TEMP/node-headers.tar.gz"
+        tar -xzf "$RUNNER_TEMP/node-headers.tar.gz" -C "$node_dev_dir" --strip-components=1
+        curl -fsSL "https://nodejs.org/dist/v${node_version}/win-${node_arch}/node.lib" -o "$node_dev_dir/node.lib"
+        echo "NODE_INCLUDE_DIR=$(cygpath -m "$node_dev_dir/include/node")" >> "$GITHUB_ENV"
+        echo "NODE_IMPORT_LIB=$(cygpath -m "$node_dev_dir/node.lib")" >> "$GITHUB_ENV"
+
     - name: Build NeuG
       shell: pwsh
       run: |
         $PSNativeCommandUseErrorActionPreference = $true
         $ErrorActionPreference = "Stop"
         $python = (Get-Command python).Source
-        cmake -S . -B "$env:GITHUB_WORKSPACE/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON=ON -DBUILD_TEST=ON -DWITH_MIMALLOC=OFF -DNEUG_PACKAGE_BUILD=ON -DNEUG_NATIVE_ARCH=OFF "-DPython_EXECUTABLE=$python" "-DPYTHON_EXECUTABLE=$python" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
+        if ($env:BUILD_EXTENSIONS) {
+          foreach ($extension in $env:BUILD_EXTENSIONS.Split(';')) {
+            if ($extension -cnotmatch '^[a-z][a-z0-9_]*$') {
+              throw "Invalid extension name: '$extension'"
+            }
+          }
+        }
+        cmake -S . -B "$env:GITHUB_WORKSPACE/build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON=ON -DBUILD_NODEJS=ON "-DNODE_INCLUDE_DIR=$env:NODE_INCLUDE_DIR" "-DNODE_IMPORT_LIB=$env:NODE_IMPORT_LIB" -DBUILD_HTTP_SERVER=ON -DBUILD_TEST=ON "-DBUILD_EXTENSIONS=$env:BUILD_EXTENSIONS" -DWITH_MIMALLOC=OFF -DNEUG_PACKAGE_BUILD=ON -DNEUG_NATIVE_ARCH=OFF "-DPython_EXECUTABLE=$python" "-DPYTHON_EXECUTABLE=$python" "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=$env:VCPKG_TARGET_TRIPLET
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         cmake --build "$env:GITHUB_WORKSPACE/build" -j4
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        "$env:GITHUB_WORKSPACE/build/src" >> $env:GITHUB_PATH
         "PYTHONPATH=$env:GITHUB_WORKSPACE/tools/python_bind;$env:GITHUB_WORKSPACE/build/tools/python_bind" >> $env:GITHUB_ENV
-        "CMAKE_ARGS=-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows-static-md" >> $env:GITHUB_ENV
+        "CMAKE_ARGS=-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=$env:VCPKG_TARGET_TRIPLET" >> $env:GITHUB_ENV
 
     # ========================================
     # Phase 2: C++ Tests
@@ -119,6 +167,7 @@ jobs:
       uses: ./.github/actions/test-cpp
       with:
         platform: windows
+        extensions: ${{ inputs.extensions }}
 
     # ========================================
     # Phase 3: Python Tests
@@ -128,6 +177,19 @@ jobs:
       uses: ./.github/actions/test-python
       with:
         platform: windows
+        extensions: ${{ inputs.extensions }}
+
+    # ========================================
+    # Phase 4: Node.js Tests
+    # ========================================
+
+    - name: Run Node.js Tests and Optional Packaging
+      uses: ./.github/actions/test-and-package-nodejs
+      with:
+        extensions: ${{ inputs.extensions }}
+        package: 'true'
+        artifact_platform: windows-${{ matrix.arch }}
+        upload_artifacts: ${{ inputs.upload_artifacts }}
 
     # ========================================
     # Phase 6: Wheel Test
@@ -136,10 +198,10 @@ jobs:
     - name: Wheel Test
       uses: ./.github/actions/package-wheel
       with:
-        artifact_platform: windows-x86_64
-        oss_platform: windows_x86_64
+        artifact_platform: windows-${{ matrix.arch }}
+        oss_platform: win_${{ matrix.arch }}
         python_versions: ${{ inputs.python_versions || '3.13' }}
-        extensions: ''
+        extensions: ${{ inputs.extensions }}
         upload_artifacts: ${{ inputs.upload_artifacts }}
 
     # ========================================
