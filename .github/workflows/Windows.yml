@@ -231,7 +231,7 @@ jobs:
           "-DPython_EXECUTABLE=$python" `
           "-DPYTHON_EXECUTABLE=$python" `
           "-DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
-          -DVCPKG_TARGET_TRIPLET=$env:VCPKG_TARGET_TRIPLET
+          "-DVCPKG_TARGET_TRIPLET=$env:VCPKG_TARGET_TRIPLET"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         cmake --build "$env:GITHUB_WORKSPACE/build" -j4
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
