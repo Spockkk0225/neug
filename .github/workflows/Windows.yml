@@ -124,19 +124,24 @@ jobs:
         cache-dependency-path: tools/nodejs_bind/package-lock.json
 
     - name: Install Node.js Build Dependencies
-      shell: bash
+      shell: pwsh
       run: |
-        set -euo pipefail
         npm ci --prefix tools/nodejs_bind
-        node_version=$(node -p "process.versions.node")
-        node_arch=$(node -p "process.arch")
-        node_dev_dir="$(cygpath -u "$RUNNER_TEMP")/node-v${node_version}-dev"
-        mkdir -p "$node_dev_dir"
-        curl -fsSL "https://nodejs.org/dist/v${node_version}/node-v${node_version}-headers.tar.gz" -o "$RUNNER_TEMP/node-headers.tar.gz"
-        tar -xzf "$RUNNER_TEMP/node-headers.tar.gz" -C "$node_dev_dir" --strip-components=1
-        curl -fsSL "https://nodejs.org/dist/v${node_version}/win-${node_arch}/node.lib" -o "$node_dev_dir/node.lib"
-        echo "NODE_INCLUDE_DIR=$(cygpath -m "$node_dev_dir/include/node")" >> "$GITHUB_ENV"
-        echo "NODE_IMPORT_LIB=$(cygpath -m "$node_dev_dir/node.lib")" >> "$GITHUB_ENV"
+
+        $nodeVersion = node -p "process.versions.node"
+        $nodeArch = node -p "process.arch"
+        $nodeDevDir = Join-Path $env:RUNNER_TEMP "node-v$nodeVersion-dev"
+        $headersArchive = Join-Path $env:RUNNER_TEMP "node-headers.tar.gz"
+        $headersUrl = "https://nodejs.org/dist/v$nodeVersion/node-v$nodeVersion-headers.tar.gz"
+        $nodeLibUrl = "https://nodejs.org/dist/v$nodeVersion/win-$nodeArch/node.lib"
+
+        Invoke-WebRequest $headersUrl -OutFile $headersArchive
+        New-Item -ItemType Directory -Force $nodeDevDir | Out-Null
+        tar -xzf $headersArchive -C $nodeDevDir --strip-components=1
+        Invoke-WebRequest $nodeLibUrl -OutFile (Join-Path $nodeDevDir "node.lib")
+
+        "NODE_INCLUDE_DIR=$nodeDevDir\include\node" >> $env:GITHUB_ENV
+        "NODE_IMPORT_LIB=$nodeDevDir\node.lib" >> $env:GITHUB_ENV
 
     - name: Build NeuG
       shell: pwsh
