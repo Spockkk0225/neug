@@ -3,18 +3,26 @@ name: nightly-test
 on:
   workflow_dispatch:
     inputs:
-      platforms:
-        description: Platform to test, or all supported platforms.
-        type: choice
-        default: all
-        options:
-          - all
-          - macos-windows
-          - linux-x86_64
-          - linux-arm64
-          - osx-arm64
-          - windows-x86_64
-          - windows-arm64
+      linux_x86_64:
+        description: Linux x86-64
+        type: boolean
+        default: true
+      linux_arm64:
+        description: Linux ARM64
+        type: boolean
+        default: true
+      macos_arm64:
+        description: macOS ARM64
+        type: boolean
+        default: true
+      windows_x86_64:
+        description: Windows x86-64
+        type: boolean
+        default: true
+      windows_arm64:
+        description: Windows ARM64
+        type: boolean
+        default: true
   schedule:
     # Run at 22:00 CST Tuesday through Sunday; Monday is covered by package.yml.
     - cron: 0 14 * * 0,2-6
@@ -29,7 +37,7 @@ concurrency:
 
 jobs:
   linux_x86_64:
-    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'linux-x86_64'
+    if: github.event_name == 'schedule' || inputs.linux_x86_64
     uses: ./.github/workflows/Linux.yml
     with:
       architectures: '["x86_64"]'
@@ -40,7 +48,7 @@ jobs:
     secrets: inherit
 
   linux_arm64:
-    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'linux-arm64'
+    if: github.event_name == 'schedule' || inputs.linux_arm64
     uses: ./.github/workflows/Linux.yml
     with:
       architectures: '["arm64"]'
@@ -50,7 +58,7 @@ jobs:
     secrets: inherit
 
   macos:
-    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows' || contains(inputs.platforms, 'osx-')
+    if: github.event_name == 'schedule' || inputs.macos_arm64
     uses: ./.github/workflows/OSX.yml
     with:
       extensions: parquet;httpfs;gds;pattern_matching;vector_search;fts
@@ -59,10 +67,10 @@ jobs:
     secrets: inherit
 
   windows:
-    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows' || contains(inputs.platforms, 'windows-')
+    if: github.event_name == 'schedule' || inputs.windows_x86_64 || inputs.windows_arm64
     uses: ./.github/workflows/Windows.yml
     with:
-      architectures: ${{ ((inputs.platforms || 'all') == 'all' || inputs.platforms == 'macos-windows') && '["x86_64","arm64"]' || inputs.platforms == 'windows-arm64' && '["arm64"]' || '["x86_64"]' }}
+      architectures: ${{ (github.event_name == 'schedule' || (inputs.windows_x86_64 && inputs.windows_arm64)) && '["x86_64","arm64"]' || inputs.windows_arm64 && '["arm64"]' || '["x86_64"]' }}
       # vector_search is not supported by the current Windows build.
       extensions: parquet;httpfs;gds;pattern_matching;fts
       python_versions: '3.13'
