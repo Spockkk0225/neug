@@ -52,7 +52,7 @@ jobs:
     needs: format_check
     name: Windows ${{ matrix.arch }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         arch: ${{ fromJSON(inputs.architectures || '["x86_64"]') }}
     runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-2022' }}
@@ -260,6 +260,8 @@ jobs:
     # ========================================
 
     - name: Run Python Tests
+      id: python-tests
+      continue-on-error: true
       uses: ./.github/actions/test-python
       with:
         platform: windows
@@ -270,6 +272,8 @@ jobs:
     # ========================================
 
     - name: Run Node.js Tests and Optional Packaging
+      id: nodejs-tests
+      continue-on-error: true
       uses: ./.github/actions/test-and-package-nodejs
       with:
         extensions: ${{ inputs.extensions }}
@@ -282,6 +286,8 @@ jobs:
     # ========================================
 
     - name: Wheel Test
+      id: wheel-test
+      continue-on-error: true
       uses: ./.github/actions/package-wheel
       with:
         artifact_platform: windows-${{ matrix.arch }}
@@ -308,3 +314,16 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ${{ github.workspace }}/build/coverage_filtered.info
         fail_ci_if_error: true
+
+    - name: Check test results
+      if: always()
+      shell: pwsh
+      run: |
+        $failed = @()
+        if ('${{ steps.python-tests.outcome }}' -eq 'failure') { $failed += 'python-tests' }
+        if ('${{ steps.nodejs-tests.outcome }}' -eq 'failure') { $failed += 'nodejs-tests' }
+        if ('${{ steps.wheel-test.outcome }}' -eq 'failure') { $failed += 'wheel-test' }
+        if ($failed.Count -gt 0) {
+          Write-Error "The following test steps failed: $($failed -join ', ')"
+          exit 1
+        }
