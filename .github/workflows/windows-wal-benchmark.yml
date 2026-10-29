@@ -1,0 +1,37 @@
+name: Windows WAL benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/benchmark_windows_wal.py
+      - .github/workflows/windows-wal-benchmark.yml
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Benchmark Windows WAL file operations
+      shell: pwsh
+      run: |
+        python -u scripts/benchmark_windows_wal.py 2>&1 | Tee-Object -FilePath wal-benchmark.txt
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Upload benchmark results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-wal-benchmark
+        path: wal-benchmark.txt

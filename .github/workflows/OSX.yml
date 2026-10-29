@@ -161,8 +161,9 @@ jobs:
         brew install ccache
         bash scripts/install_deps.sh
 
-    - name: Cache CCache
-      uses: actions/cache@v4
+    - name: Restore CCache
+      id: ccache
+      uses: actions/cache/restore@v4
       with:
         path: ~/Library/Caches/ccache
         key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ github.ref_name }}-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'proto/**', '.github/workflows/Linux.yml', '.github/workflows/OSX.yml') }}
@@ -223,6 +224,7 @@ jobs:
         echo "ENABLE_GCOV=ON" >> $GITHUB_ENV
 
     - name: Build NeuG
+      id: build
       shell: bash
       run: |
         NEUG_ENV_FOUND=false
@@ -270,6 +272,13 @@ jobs:
         make stage BUILD_TYPE=Release
       env:
         EXTENSION_LIST: ${{ (inputs.extensions != '' || steps.changes.outputs.extension == 'true') && (inputs.extensions || 'parquet;httpfs;gds;pattern_matching;vector_search;fts') || '' }}
+
+    - name: Save CCache
+      if: steps.build.outcome == 'success' && steps.ccache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/Library/Caches/ccache
+        key: ${{ steps.ccache.outputs.cache-primary-key }}
 
     - name: Prepare Test Data
       uses: ./.github/actions/prepare-data
