@@ -1,0 +1,32 @@
+name: Windows binary I/O diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/reproduce_windows_binary_io.py
+      - .github/workflows/windows-binary-io-repro.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    - name: Compare default and binary CRT file operations
+      shell: pwsh
+      run: |
+        python -u scripts/reproduce_windows_binary_io.py 2>&1 | Tee-Object -FilePath binary-io-results.txt
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    - name: Upload diagnostic results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-binary-io-results
+        path: binary-io-results.txt
