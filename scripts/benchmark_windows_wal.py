@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Time Windows WAL CRT operations without building NeuG or installing packages.
+"""Compare CRT and native Windows WAL extension without building NeuG.
 
 Run with the Python installed by the Windows CI job:
     python scripts/benchmark_windows_wal.py
@@ -128,7 +128,16 @@ def main():
                             values.append(timed(lambda: checked("_commit", fd)))
                     finally:
                         values.append(timed(lambda: checked("_close", fd)))
-                        path.unlink()
+                    # Check persisted writes and the unused tail outside the
+                    # timings. Native extension must preserve the logical size.
+                    assert path.stat().st_size == max(size * 1024**2, 8192)
+                    with path.open("rb") as wal:
+                        assert wal.read(8192) == b"x" * 8192
+                        if size * 1024**2 > 8192:
+                            assert wal.read(16) == bytes(16)
+                            wal.seek(-16, os.SEEK_END)
+                            assert wal.read(16) == bytes(16)
+                    path.unlink()
                     print(
                         "{},{},{},{}".format(
                             method,
