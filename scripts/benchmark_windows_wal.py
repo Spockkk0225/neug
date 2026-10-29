@@ -37,6 +37,9 @@ def main():
     parser.add_argument("--directory", type=Path, default=None)
     parser.add_argument("--sizes-mib", type=int, nargs="+", default=[0, 1, 16, 1024])
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--methods", nargs="+", choices=["crt", "win32"], default=["crt", "win32"]
+    )
     args = parser.parse_args()
     if os.name != "nt":
         parser.error("This benchmark requires Windows and ucrtbase.dll")
@@ -50,11 +53,31 @@ def main():
         "_write": ([ctypes.c_int, ctypes.c_void_p, ctypes.c_uint], ctypes.c_int),
         "_commit": ([ctypes.c_int], ctypes.c_int),
         "_close": ([ctypes.c_int], ctypes.c_int),
+        "_get_osfhandle": ([ctypes.c_int], ctypes.c_ssize_t),
     }
     for name, (argtypes, restype) in signatures.items():
         function = getattr(crt, name)
         function.argtypes = argtypes
         function.restype = restype
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    set_info = kernel32.SetFileInformationByHandle
+    set_info.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_ulong]
+    set_info.restype = ctypes.c_int
+
+    def resize(fd, size, method):
+        if method == "crt":
+            checked("_chsize_s", fd, size)
+        else:
+            end_of_file = ctypes.c_longlong(size)
+            # FileEndOfFileInfo = 6; does not move the file pointer.
+            if not set_info(
+                checked("_get_osfhandle", fd),
+                6,
+                ctypes.byref(end_of_file),
+                ctypes.sizeof(end_of_file),
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
 
     def checked(name, *values):
         result = getattr(crt, name)(*values)
@@ -76,40 +99,45 @@ def main():
     ) as tmp:
         print("Directory: {}".format(tmp), flush=True)
         print(
-            "mib,repeat,open_ms,resize_ms,write1_ms,commit1_ms,write2_ms,commit2_ms,close_ms",
+            "method,mib,repeat,open_ms,resize_ms,write1_ms,commit1_ms,write2_ms,commit2_ms,close_ms",
             flush=True,
         )
-        for size in args.sizes_mib:
-            for repeat in range(1, args.repeats + 1):
-                path = Path(tmp) / "sample.wal"
-                print("Starting {} MiB, repeat {}".format(size, repeat), flush=True)
-                # Match NeuG's O_RDWR | O_CREAT | O_TRUNC and read/write mode.
-                start = time.perf_counter()
-                fd = checked("_wopen", str(path), 0x0002 | 0x0100 | 0x0200, 0x0180)
-                values = [(time.perf_counter() - start) * 1000]
-                try:
-                    values.append(
-                        timed(lambda: checked("_chsize_s", fd, size * 1024**2))
+        for method in args.methods:
+            for size in args.sizes_mib:
+                for repeat in range(1, args.repeats + 1):
+                    path = Path(tmp) / "sample.wal"
+                    print(
+                        "Starting {}: {} MiB, repeat {}".format(method, size, repeat),
+                        flush=True,
                     )
-                    # _chsize_s restores the original file position. Both writes
-                    # occur near the start, as WAL appends do after preallocation.
-                    for _ in range(2):
+                    # Match NeuG's O_RDWR | O_CREAT | O_TRUNC and read/write mode.
+                    start = time.perf_counter()
+                    fd = checked("_wopen", str(path), 0x0002 | 0x0100 | 0x0200, 0x0180)
+                    values = [(time.perf_counter() - start) * 1000]
+                    try:
+                        values.append(timed(lambda: resize(fd, size * 1024**2, method)))
+                        # _chsize_s restores the original file position. Both writes
+                        # occur near the start, as WAL appends do after preallocation.
+                        for _ in range(2):
 
-                        def write_payload():
-                            if checked("_write", fd, payload, 4096) != 4096:
-                                raise OSError("Short WAL payload write")
+                            def write_payload():
+                                if checked("_write", fd, payload, 4096) != 4096:
+                                    raise OSError("Short WAL payload write")
 
-                        values.append(timed(write_payload))
-                        values.append(timed(lambda: checked("_commit", fd)))
-                finally:
-                    values.append(timed(lambda: checked("_close", fd)))
-                    path.unlink()
-                print(
-                    "{},{},{}".format(
-                        size, repeat, ",".join("{:.3f}".format(v) for v in values)
-                    ),
-                    flush=True,
-                )
+                            values.append(timed(write_payload))
+                            values.append(timed(lambda: checked("_commit", fd)))
+                    finally:
+                        values.append(timed(lambda: checked("_close", fd)))
+                        path.unlink()
+                    print(
+                        "{},{},{},{}".format(
+                            method,
+                            size,
+                            repeat,
+                            ",".join("{:.3f}".format(v) for v in values),
+                        ),
+                        flush=True,
+                    )
 
 
 if __name__ == "__main__":
