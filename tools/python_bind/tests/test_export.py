@@ -93,7 +93,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -105,7 +105,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}' (HEADER = false);"
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path.as_posix()}' (HEADER = false);"
         )
         assert out_path.exists()
         _, rows = _parse_csv(out_path, "|", has_header=False)
@@ -118,7 +118,7 @@ class TestExport:
             self.conn, "MATCH (v:person)-[e:knows]->(v2:person) RETURN e"
         )
         self.conn.execute(
-            f"COPY (MATCH (v:person)-[e:knows]->(v2:person) RETURN e) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:person)-[e:knows]->(v2:person) RETURN e) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -133,7 +133,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person)-[e:knows*0..1]->(v2:person) RETURN e) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -146,7 +146,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = true, DELIMITER = ',');"
+            f"'{out_path.as_posix()}' (HEADER = true, DELIMITER = ',');"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, ",", has_header=True)
@@ -161,7 +161,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.age) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -176,7 +176,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) WHERE v.age > 20 RETURN v.*) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -188,7 +188,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:organisation) RETURN v.*")
         self.conn.execute(
-            f"COPY (MATCH (v:organisation) RETURN v.*) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:organisation) RETURN v.*) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -200,7 +200,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:movies) RETURN v.*")
         self.conn.execute(
-            f"COPY (MATCH (v:movies) RETURN v.*) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:movies) RETURN v.*) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -216,7 +216,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person)-[e:studyAt]->(v2:organisation) RETURN e) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -232,7 +232,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person)-[e:workAt]->(v2:organisation) RETURN e) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -245,7 +245,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -261,7 +261,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.age, v.eyeSight, v.isStudent) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -277,7 +277,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.birthdate, v.registerTime) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -289,7 +289,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -301,7 +301,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:organisation) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:organisation) RETURN v) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:organisation) RETURN v) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -313,7 +313,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:movies) RETURN v")
         self.conn.execute(
-            f"COPY (MATCH (v:movies) RETURN v) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:movies) RETURN v) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -328,7 +328,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (:person)-[e:knows]->(:person) RETURN e) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -345,7 +345,7 @@ class TestExport:
             )
             self.conn.execute(
                 f"COPY (MATCH (:person)-[e:{label}]->(:organisation) RETURN e) TO "
-                f"'{out_path}' (HEADER = true);"
+                f"'{out_path.as_posix()}' (HEADER = true);"
             )
             assert out_path.exists()
             header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -360,7 +360,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person)-[e:knows*0..1]->(v2:person) RETURN e) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -376,7 +376,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person)-[k:knows*1..3]->(v2:person) RETURN v, k, v2) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -388,7 +388,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -401,7 +401,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = true, DELIM = ';');"
+            f"'{out_path.as_posix()}' (HEADER = true, DELIM = ';');"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, ";", has_header=True)
@@ -414,7 +414,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = true);"
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -427,7 +427,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = false);"
+            f"'{out_path.as_posix()}' (HEADER = false);"
         )
         assert out_path.exists()
         _, rows = _parse_csv(out_path, "|", has_header=False)
@@ -439,7 +439,7 @@ class TestExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO "
-            f"'{out_path}' (HEADER = true, BATCH_SIZE = 1024);"
+            f"'{out_path.as_posix()}' (HEADER = true, BATCH_SIZE = 1024);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -454,7 +454,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.age) TO "
-            f"'{out_path}' (HEADER = true, DELIMITER = ',', BATCH_SIZE = 2048);"
+            f"'{out_path.as_posix()}' (HEADER = true, DELIMITER = ',', BATCH_SIZE = 2048);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, ",", has_header=True)
@@ -469,7 +469,7 @@ class TestExport:
         )
         self.conn.execute(
             f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO "
-            f"'{out_path}' (HEADER = true, QUOTE = '\\'');"
+            f"'{out_path.as_posix()}' (HEADER = true, QUOTE = '\\'');"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -483,7 +483,7 @@ class TestExport:
         out_path = self.tmp_path / "single_quote.csv"
         out_path.unlink(missing_ok=True)
         self.conn.execute(
-            f"COPY (MATCH (v:person {{ID: 0}}) RETURN v.fName) TO '{out_path}' (HEADER = false, QUOTE = '\\'');"
+            f"COPY (MATCH (v:person {{ID: 0}}) RETURN v.fName) TO '{out_path.as_posix()}' (HEADER = false, QUOTE = '\\'');"
         )
         assert out_path.exists()
         with open(out_path, "r", encoding="utf-8") as f:
@@ -501,7 +501,7 @@ class TestExport:
         try:
             self.conn.execute(
                 f"COPY (MATCH (v:person {{ID: 1006}}) RETURN v.fName) TO "
-                f"'{out_path}' (HEADER = false);"
+                f"'{out_path.as_posix()}' (HEADER = false);"
             )
             assert out_path.exists()
             with open(out_path, "r", encoding="utf-8") as f:
@@ -516,7 +516,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path.as_posix()}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
@@ -538,7 +538,9 @@ class TestExport:
         out_path = self.tmp_path / "person_node.json"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
-        self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
         assert (
@@ -554,7 +556,7 @@ class TestExport:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.fName, v.age")
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path}';"
+            f"COPY (MATCH (v:person) RETURN v.fName, v.age) TO '{out_path.as_posix()}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
@@ -576,7 +578,9 @@ class TestExport:
         out_path = self.tmp_path / "person_node.jsonl"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v")
-        self.conn.execute(f"COPY (MATCH (v:person) RETURN v) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:person) RETURN v) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
         assert (
@@ -593,7 +597,7 @@ class TestExport:
             self.conn, "MATCH (v:person) RETURN v.ID, collect(v.fName)"
         )
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO '{out_path}';"
+            f"COPY (MATCH (v:person) RETURN v.ID, collect(v.fName)) TO '{out_path.as_posix()}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
@@ -625,7 +629,8 @@ class TestExportComprehensiveGraph:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
         self.conn.execute(
-            f"COPY (MATCH (v:node_a) RETURN v.*) TO " f"'{out_path}' (HEADER = true);"
+            f"COPY (MATCH (v:node_a) RETURN v.*) TO "
+            f"'{out_path.as_posix()}' (HEADER = true);"
         )
         assert out_path.exists()
         header, rows = _parse_csv(out_path, "|", has_header=True)
@@ -637,7 +642,9 @@ class TestExportComprehensiveGraph:
         out_path = self.tmp_path / "node_a.json"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
-        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
         data = _parse_json_array(out_path)
         assert (
@@ -652,7 +659,9 @@ class TestExportComprehensiveGraph:
         out_path = self.tmp_path / "node_a.jsonl"
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
-        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
         rows = _parse_jsonl(out_path)
         assert (
@@ -668,11 +677,13 @@ class TestExportComprehensiveGraph:
         out_path.unlink(missing_ok=True)
         expected = _count_query(self.conn, "MATCH (v:node_a) RETURN v.*")
         self.conn.execute("LOAD PARQUET")
-        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:node_a) RETURN v.*) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
 
         # Verify by loading back with NeuG's LOAD FROM
-        load_query = f'LOAD FROM "{out_path}" RETURN *'
+        load_query = f'LOAD FROM "{out_path.as_posix()}" RETURN *'
         load_result = self.conn.execute(load_query)
         records = list(load_result)
         assert (
@@ -729,7 +740,9 @@ class TestExportComprehensiveGraph:
         out_path = self.tmp_path / "node_a_vertex.parquet"
         out_path.unlink(missing_ok=True)
         self.conn.execute("LOAD PARQUET")
-        self.conn.execute(f"COPY (MATCH (v:node_a) RETURN v) TO '{out_path}';")
+        self.conn.execute(
+            f"COPY (MATCH (v:node_a) RETURN v) TO '{out_path.as_posix()}';"
+        )
         assert out_path.exists(), f"Output file not created: {out_path}"
 
         # Note: LOAD FROM does not yet support reading Struct types (Vertex/Edge),
@@ -745,7 +758,7 @@ class TestExportComprehensiveGraph:
         out_path.unlink(missing_ok=True)
         self.conn.execute("LOAD PARQUET")
         self.conn.execute(
-            f"COPY (MATCH (v:node_a)-[e:rel_a]->(v2:node_a) RETURN e) TO '{out_path}';"
+            f"COPY (MATCH (v:node_a)-[e:rel_a]->(v2:node_a) RETURN e) TO '{out_path.as_posix()}';"
         )
         assert out_path.exists(), f"Output file not created: {out_path}"
 
@@ -781,13 +794,13 @@ class TestParquetExport:
         )
 
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.gender, v.age) TO '{out_path}'"
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName, v.gender, v.age) TO '{out_path.as_posix()}'"
         )
 
         assert out_path.exists()
 
         # Verify by loading back with NeuG's LOAD FROM
-        load_result = self.conn.execute(f'LOAD FROM "{out_path}" RETURN *')
+        load_result = self.conn.execute(f'LOAD FROM "{out_path.as_posix()}" RETURN *')
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
 
@@ -799,7 +812,7 @@ class TestParquetExport:
             out_path.unlink()
 
         self.conn.execute(
-            f"COPY (MATCH (v:person)-[e:knows]->(v2:person) RETURN e) TO '{out_path}'"
+            f"COPY (MATCH (v:person)-[e:knows]->(v2:person) RETURN e) TO '{out_path.as_posix()}'"
         )
 
         assert out_path.exists()
@@ -819,13 +832,13 @@ class TestParquetExport:
 
         # Export specific columns with different types
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path}'"
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path.as_posix()}'"
         )
 
         assert out_path.exists()
 
         # Verify by loading back with NeuG's LOAD FROM
-        load_result = self.conn.execute(f'LOAD FROM "{out_path}" RETURN *')
+        load_result = self.conn.execute(f'LOAD FROM "{out_path.as_posix()}" RETURN *')
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
 
@@ -837,13 +850,13 @@ class TestParquetExport:
         expected = _count_query(self.conn, "MATCH (v:person) RETURN v.ID, v.fName")
 
         self.conn.execute(
-            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path}' "
+            f"COPY (MATCH (v:person) RETURN v.ID, v.fName) TO '{out_path.as_posix()}' "
             "(COMPRESSION='zstd', ROW_GROUP_SIZE=5000, DICTIONARY_ENCODING=true)"
         )
         assert out_path.exists()
 
         # Verify by loading back with NeuG's LOAD FROM
-        load_result = self.conn.execute(f'LOAD FROM "{out_path}" RETURN *')
+        load_result = self.conn.execute(f'LOAD FROM "{out_path.as_posix()}" RETURN *')
         records = list(load_result)
         assert len(records) == expected, f"Expected {expected} rows, got {len(records)}"
 

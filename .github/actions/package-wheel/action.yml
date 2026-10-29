@@ -183,7 +183,15 @@ runs:
         # Clear only Python staging and the prior ABI binding; keep the native core.
         rm -rf build
         find "$GITHUB_WORKSPACE/build/tools/python_bind" -maxdepth 1 -type f \( -name 'neug_py_bind*.so' -o -name 'neug_py_bind*.pyd' \) -delete
-        "$py" setup.py bdist_wheel --dist-dir "$RUNNER_TEMP/wheel-$version"
+        if [ "$RUNNER_OS" = macOS ]; then
+          # Keep CMake's target and the wheel tag aligned with the native build.
+          macos_arch=$(uname -m)
+          ARCHFLAGS="-arch $macos_arch" "$py" setup.py bdist_wheel \
+            --plat-name "macosx_${MACOSX_DEPLOYMENT_TARGET//./_}_$macos_arch" \
+            --dist-dir "$RUNNER_TEMP/wheel-$version"
+        else
+          "$py" setup.py bdist_wheel --dist-dir "$RUNNER_TEMP/wheel-$version"
+        fi
         if [ "$RUNNER_OS" = Linux ]; then
           "$py" -m pip install auditwheel patchelf
           "$py" -m auditwheel repair "$RUNNER_TEMP/wheel-$version/"*.whl -w "$COMPLETE_WHEELHOUSE"
@@ -207,11 +215,17 @@ runs:
             "$py" -m wheel pack "$package" -d "$WHEELHOUSE"
           done
         done
-        "$py" -m venv "$RUNNER_TEMP/wheel-verify-$version"
-        verify_py="$RUNNER_TEMP/wheel-verify-$version/bin/python"
-        if [ "$RUNNER_OS" = Windows ]; then verify_py="$RUNNER_TEMP/wheel-verify-$version/Scripts/python.exe"; fi
-        "$verify_py" -m pip install "$WHEELHOUSE/"*"cp${version/./}"*.whl
-        (cd "$RUNNER_TEMP" && PYTHONPATH= "$verify_py" -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))')
+        verify_dir=$(mktemp -d "$RUNNER_TEMP/wheel-verify-$version.XXXXXX")
+        "$py" -m venv "$verify_dir/venv"
+        verify_py="$verify_dir/venv/bin/python"
+        if [ "$RUNNER_OS" = Windows ]; then verify_py="$verify_dir/venv/Scripts/python.exe"; fi
+        (
+          # Verify the installed wheel without source paths or egg-info.
+          cd "$verify_dir"
+          export PYTHONPATH=
+          "$verify_py" -m pip install "$WHEELHOUSE/"*"cp${version/./}"*.whl
+          "$verify_py" -c 'import neug; db=neug.Database(); c=db.connect(); print(c.execute("RETURN 1"))'
+        )
       done
     env:
       WHEELHOUSE: ${{ github.workspace }}/${{ inputs.output_dir }}

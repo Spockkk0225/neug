@@ -75,8 +75,9 @@ TEST(WalWriterTest, ReopensSameInstanceOnNewTimeline) {
       (std::filesystem::path(test_dir) / "checkpoint-0" / "wal").string();
   const auto new_wal_dir =
       (std::filesystem::path(test_dir) / "checkpoint-1" / "wal").string();
-  constexpr uint32_t old_marker = 17;
-  constexpr uint32_t new_marker = 29;
+  // Include LF, CR, CTRL+Z, and NUL to detect Windows text-mode translation.
+  constexpr uint32_t old_marker = 0x1a0d0a00;
+  constexpr uint32_t new_marker = 0x0a1a0dff;
   std::filesystem::create_directories(old_wal_dir);
   std::filesystem::create_directories(new_wal_dir);
 

@@ -2708,8 +2708,10 @@ class TestCopyFrom:
         self.conn.execute(
             "CREATE NODE TABLE T(id INT64, nested STRING[][2][], PRIMARY KEY(id));"
         )
-        self.conn.execute(f'COPY T FROM "{csv_path}" (header = true, delim = "|");')
-        self.conn.execute(f'COPY T FROM "{json_path}";')
+        self.conn.execute(
+            f'COPY T FROM "{csv_path.as_posix()}" (header = true, delim = "|");'
+        )
+        self.conn.execute(f'COPY T FROM "{json_path.as_posix()}";')
 
         rows = list(
             self.conn.execute("MATCH (n:T) RETURN n.id, n.nested ORDER BY n.id;")
@@ -2726,4 +2728,4 @@ class TestCopyFrom:
             '[{"id":5,"nested":[[["x"],["y"],["z"]]]}]', encoding="utf-8"
         )
         with pytest.raises(Exception):
-            self.conn.execute(f'COPY T FROM "{bad_json}";')
+            self.conn.execute(f'COPY T FROM "{bad_json.as_posix()}";')

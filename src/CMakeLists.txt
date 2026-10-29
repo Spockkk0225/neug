@@ -99,6 +99,12 @@ if(WIN32 AND BUILD_TEST)
     # archive cannot satisfy (unresolved external at link time). NEUG_STATIC_DEFINE
     # makes NEUG_API expand to nothing on the consumer side, matching the archive.
     target_compile_definitions(neug_static INTERFACE NEUG_STATIC_DEFINE)
+    if(MSVC)
+        # WAL implementations register through static initialization. Without
+        # whole-archive linking, unreferenced registration objects are dropped.
+        target_link_options(neug_static INTERFACE
+            "/WHOLEARCHIVE:$<TARGET_FILE:neug_static>")
+    endif()
     if (ENABLE_GCOV)
         target_link_options(neug_static PRIVATE --coverage)
     endif()

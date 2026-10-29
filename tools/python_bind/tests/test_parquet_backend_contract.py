@@ -219,7 +219,7 @@ def test_reader_preserves_remaining_physical_type_boundaries(connection, batch_r
 
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" '
+            f'LOAD FROM "{path.as_posix()}" '
             f"(batch_read={str(batch_read).lower()}, parquet_batch_rows=1) "
             "RETURN * ORDER BY row_id"
         )
@@ -444,7 +444,7 @@ def test_reader_reports_path_and_cross_file_schema_errors(
 def test_registered_reader_enforces_carquet_option_bounds(connection, options, error):
     path = DATASET_DIR / "tinysnb" / "parquet" / "vPerson.parquet"
     with pytest.raises(RuntimeError, match=error):
-        connection.execute(f'LOAD FROM "{path}" ({options}) RETURN ID')
+        connection.execute(f'LOAD FROM "{path.as_posix()}" ({options}) RETURN ID')
 
 
 @pytest.mark.parametrize(
@@ -551,7 +551,7 @@ def test_reader_preserves_external_delta_encoding_fixture(connection):
     path = FIXTURE_DIR / "arrow_delta_encodings.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" WHERE id >= 3 AND id <= 7 '
+            f'LOAD FROM "{path.as_posix()}" WHERE id >= 3 AND id <= 7 '
             "RETURN text_length, text_prefix, signed_value, id ORDER BY id"
         )
     )
@@ -568,7 +568,9 @@ def test_reader_preserves_external_delta_encoding_fixture(connection):
 
 def test_reader_preserves_external_byte_stream_split_lz4_fixture(connection):
     path = FIXTURE_DIR / "arrow_byte_stream_split.parquet"
-    rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY id'))
+    rows = list(
+        connection.execute(f'LOAD FROM "{path.as_posix()}" RETURN * ORDER BY id')
+    )
     assert len(rows) == 12
     assert math.isnan(rows[0][1])
     assert rows[1][1] == float("inf")
@@ -582,7 +584,8 @@ def test_reader_preserves_external_int96_timestamp_fixture(connection):
     path = FIXTURE_DIR / "arrow_int96.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{path}" WHERE id >= 3 ' "RETURN id, event_time ORDER BY id"
+            f'LOAD FROM "{path.as_posix()}" WHERE id >= 3 '
+            "RETURN id, event_time ORDER BY id"
         )
     )
     assert rows == [
@@ -595,12 +598,14 @@ def test_reader_preserves_external_int96_timestamp_fixture(connection):
 
 def test_reader_handles_empty_files_and_all_null_row_groups(connection):
     empty_path = FIXTURE_DIR / "arrow_empty.parquet"
-    assert list(connection.execute(f'LOAD FROM "{empty_path}" RETURN *')) == []
+    assert (
+        list(connection.execute(f'LOAD FROM "{empty_path.as_posix()}" RETURN *')) == []
+    )
 
     null_path = FIXTURE_DIR / "arrow_all_null_groups.parquet"
     rows = list(
         connection.execute(
-            f'LOAD FROM "{null_path}" WHERE text IS NULL '
+            f'LOAD FROM "{null_path.as_posix()}" WHERE text IS NULL '
             "RETURN id, text, numbers ORDER BY id"
         )
     )
@@ -646,12 +651,14 @@ def test_writer_preserves_options_and_nested_values(connection, tmp_path):
     )
     connection.execute(
         f"COPY (MATCH (r:ContractRow) "
-        f"RETURN r.id, r.label, r.values ORDER BY r.id) TO '{path}' "
+        f"RETURN r.id, r.label, r.values ORDER BY r.id) TO '{path.as_posix()}' "
         "(COMPRESSION='zstd', ROW_GROUP_SIZE=1024, "
         "DICTIONARY_ENCODING=true)"
     )
 
-    rows = list(connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"'))
+    rows = list(
+        connection.execute(f'LOAD FROM "{path.as_posix()}" RETURN * ORDER BY "r.id"')
+    )
     assert rows == [[1, "alpha", [1, 2]], [2, "中文", []]]
 
 
@@ -699,7 +706,7 @@ def test_writer_applies_options_through_registered_function(connection, tmp_path
         path = tmp_path / f"writer_options_{dictionary}.parquet"
         connection.execute(
             f"COPY (MATCH (r:WriterOptionRow) "
-            f"RETURN r.id, r.category ORDER BY r.id) TO '{path}' "
+            f"RETURN r.id, r.category ORDER BY r.id) TO '{path.as_posix()}' "
             "(COMPRESSION='zstd', ROW_GROUP_SIZE=2, "
             f"DICTIONARY_ENCODING={str(dictionary).lower()})"
         )
@@ -709,5 +716,7 @@ def test_writer_applies_options_through_registered_function(connection, tmp_path
         assert contents[-4:] == b"PAR1"
         assert b"Carquet" in contents
         assert list(
-            connection.execute(f'LOAD FROM "{path}" RETURN * ORDER BY "r.id"')
+            connection.execute(
+                f'LOAD FROM "{path.as_posix()}" RETURN * ORDER BY "r.id"'
+            )
         ) == [[1, "a"], [2, "a"], [3, "b"], [4, "b"]]

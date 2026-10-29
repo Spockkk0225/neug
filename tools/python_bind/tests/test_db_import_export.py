@@ -270,7 +270,7 @@ def test_export_config(tmp_path):
     out_path = tmp_path / "out.csv"
     # delimiter, header, quotechar, encoding
     conn.execute(
-        f'COPY (MATCH (p:person) RETURN *) TO "{out_path}" (DELIMITER=",", HEADER=TRUE)'
+        f'COPY (MATCH (p:person) RETURN *) TO "{out_path.as_posix()}" (DELIMITER=",", HEADER=TRUE)'
     )
     assert out_path.exists()
     conn.close()
@@ -310,7 +310,9 @@ def test_export_no_permission(tmp_path):
     out_path = out_dir / "out.csv"
     try:
         with pytest.raises(Exception) as excinfo:
-            conn.execute(f'COPY (MATCH (v:person) RETURN v) to "{out_path}";')
+            conn.execute(
+                f'COPY (MATCH (v:person) RETURN v) to "{out_path.as_posix()}";'
+            )
             print(str(excinfo.value))
         assert str(ERR_PERMISSION) in str(excinfo.value)
     finally:
@@ -394,7 +396,7 @@ def test_copy_load_from_to_csv(tmp_path):
     output_csv = tmp_path / "output.csv"
     conn.execute(
         f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" RETURN id, name, age) '
-        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER=",");'
+        f'TO "{output_csv.as_posix()}" (HEADER=TRUE, DELIMITER=",");'
     )
 
     # Verify output file exists and contains expected data
@@ -424,7 +426,7 @@ def test_copy_load_from_to_with_filter(tmp_path):
     output_csv = tmp_path / "adults.csv"
     conn.execute(
         f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" WHERE age >= 18 RETURN id, name, age) '
-        f'TO "{output_csv}" (HEADER=TRUE);'
+        f'TO "{output_csv.as_posix()}" (HEADER=TRUE);'
     )
 
     assert output_csv.exists()
@@ -455,7 +457,7 @@ def test_copy_load_from_to_with_column_reorder(tmp_path):
     output_csv = tmp_path / "reordered.csv"
     conn.execute(
         f'COPY (LOAD FROM "{Path(input_csv).as_posix()}" RETURN id, name, score) '
-        f'TO "{output_csv}" (HEADER=TRUE, DELIMITER="|");'
+        f'TO "{output_csv.as_posix()}" (HEADER=TRUE, DELIMITER="|");'
     )
 
     assert output_csv.exists()

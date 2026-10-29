@@ -64,7 +64,7 @@ jobs:
       GS_TEST_DIR: ${{ github.workspace }}/gstest
       NEUG_ROOT_DIRECTORY: ${{ github.workspace }}
       BUILD_TYPE: RELEASE
-      BUILD_TEST: 'OFF'
+      BUILD_TEST: 'ON'
       BUILD_EXECUTABLES: 'ON'
       BUILD_EXTENSIONS: ${{ inputs.extensions }}
       BUILD_HTTP_SERVER: 'ON'
@@ -223,7 +223,7 @@ jobs:
           "-DNODE_INCLUDE_DIR=$env:NODE_INCLUDE_DIR" `
           "-DNODE_IMPORT_LIB=$env:NODE_IMPORT_LIB" `
           -DBUILD_HTTP_SERVER=ON `
-          -DBUILD_TEST=OFF `
+          -DBUILD_TEST=ON `
           "-DBUILD_EXTENSIONS=$env:BUILD_EXTENSIONS" `
           -DWITH_MIMALLOC=OFF `
           -DNEUG_PACKAGE_BUILD=OFF `
@@ -249,7 +249,8 @@ jobs:
     # ========================================
 
     - name: Run C++ Tests
-      if: ${{ false }}
+      id: cpp-tests
+      continue-on-error: true
       uses: ./.github/actions/test-cpp
       with:
         platform: windows
@@ -320,6 +321,7 @@ jobs:
       shell: pwsh
       run: |
         $failed = @()
+        if ('${{ steps.cpp-tests.outcome }}' -eq 'failure') { $failed += 'cpp-tests' }
         if ('${{ steps.python-tests.outcome }}' -eq 'failure') { $failed += 'python-tests' }
         if ('${{ steps.nodejs-tests.outcome }}' -eq 'failure') { $failed += 'nodejs-tests' }
         if ('${{ steps.wheel-test.outcome }}' -eq 'failure') { $failed += 'wheel-test' }

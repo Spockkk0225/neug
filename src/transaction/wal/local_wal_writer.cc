@@ -98,7 +98,10 @@ void LocalWalWriter::create_file() {
       continue;
     }
 #ifdef _WIN32
-    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, _S_IREAD | _S_IWRITE);
+    // WAL records contain arbitrary bytes. Text mode expands LF to CRLF,
+    // invalidating serialized lengths and the offsets used by write_all_at.
+    fd_ = _open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC | _O_BINARY,
+                _S_IREAD | _S_IWRITE);
 #else
     fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
 #endif

@@ -657,7 +657,9 @@ class TestLoadArray:
         )
         self.conn.execute("LOAD PARQUET")
         result = list(
-            self.conn.execute(f'LOAD FROM "{parquet_path}" RETURN id, tags ORDER BY id')
+            self.conn.execute(
+                f'LOAD FROM "{parquet_path.as_posix()}" RETURN id, tags ORDER BY id'
+            )
         )
         assert result == [
             [1, [1, 2, 3]],
@@ -682,7 +684,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, names ORDER BY id'
+                f'LOAD FROM "{parquet_path.as_posix()}" RETURN id, names ORDER BY id'
             )
         )
         assert result == [
@@ -707,7 +709,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+                f'LOAD FROM "{parquet_path.as_posix()}" RETURN id, values ORDER BY id'
             )
         )
         assert result == [
@@ -743,7 +745,9 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
 
         rows = list(
-            self.conn.execute(f'LOAD FROM "{list_path}" RETURN id, values ORDER BY id')
+            self.conn.execute(
+                f'LOAD FROM "{list_path.as_posix()}" RETURN id, values ORDER BY id'
+            )
         )
         assert rows == [
             [1, [1, None, 3]],
@@ -752,14 +756,16 @@ class TestLoadArray:
 
         rows = list(
             self.conn.execute(
-                f'LOAD FROM "{list_path}" '
+                f'LOAD FROM "{list_path.as_posix()}" '
                 "UNWIND values AS value RETURN value ORDER BY value"
             )
         )
         assert rows == [[1], [3], [4], [5], [None]]
 
         rows = list(
-            self.conn.execute(f'LOAD FROM "{array_path}" RETURN id, vec ORDER BY id')
+            self.conn.execute(
+                f'LOAD FROM "{array_path.as_posix()}" RETURN id, vec ORDER BY id'
+            )
         )
         assert rows == [
             [1, [1.0, None, 3.0]],
@@ -783,7 +789,7 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         result = list(
             self.conn.execute(
-                f'LOAD FROM "{parquet_path}" RETURN id, values ORDER BY id'
+                f'LOAD FROM "{parquet_path.as_posix()}" RETURN id, values ORDER BY id'
             )
         )
         assert result == [
@@ -808,12 +814,14 @@ class TestLoadArray:
         self.conn.execute("LOAD PARQUET")
         self.conn.execute(
             f"COPY (MATCH (t:Tag) RETURN t.id, t.tags "
-            f"ORDER BY t.id) TO '{out_path}'"
+            f"ORDER BY t.id) TO '{Path(out_path).as_posix()}'"
         )
 
         # Load back from parquet
         result = list(
-            self.conn.execute(f'LOAD FROM "{out_path}" RETURN * ORDER BY "t.id"')
+            self.conn.execute(
+                f'LOAD FROM "{Path(out_path).as_posix()}" RETURN * ORDER BY "t.id"'
+            )
         )
         assert len(result) == 3
         assert result[0][0] == 1
