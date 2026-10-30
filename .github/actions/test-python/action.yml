@@ -193,6 +193,9 @@ runs:
     continue-on-error: ${{ inputs.platform == 'windows' }}
     shell: bash
     working-directory: tools/python_bind
+    env:
+      # Do not pass NeuG's CMake configuration to PyArrow's source build.
+      CMAKE_ARGS: ''
     run: python -m pip install pyarrow==24.0.0
 
   - name: Run PyArrow Related Test
