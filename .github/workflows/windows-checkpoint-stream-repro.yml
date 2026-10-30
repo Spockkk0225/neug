@@ -1,0 +1,31 @@
+name: Windows checkpoint stream diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - scripts/reproduce_windows_checkpoint_stream.py
+      - .github/workflows/windows-checkpoint-stream-repro.yml
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+    runs-on: ${{ matrix.arch == 'arm64' && 'windows-11-arm' || 'windows-2022' }}
+    timeout-minutes: 5
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: ${{ matrix.arch }}
+    - name: Compare open and closed manifest streams
+      shell: pwsh
+      run: python -u scripts/reproduce_windows_checkpoint_stream.py
