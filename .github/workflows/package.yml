@@ -352,6 +352,7 @@ jobs:
   # ========================================
   java:
     needs: initialize
+    if: (inputs.platforms || 'all') == 'all' || inputs.platforms == 'java'
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
@@ -376,6 +377,7 @@ jobs:
     with:
       platforms: ${{ (inputs.platforms || 'all') == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || inputs.platforms == 'java' && '[]' || format('["{0}"]', inputs.platforms) }}
       python_versions: ${{ needs.initialize.outputs.python_versions }}
+      verify_java: ${{ (inputs.platforms || 'all') == 'all' || inputs.platforms == 'java' }}
     secrets: inherit
 
   # ========================================

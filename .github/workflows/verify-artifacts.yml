@@ -11,6 +11,10 @@ on:
         description: JSON array of Python versions to verify.
         type: string
         default: '["3.8","3.9","3.10","3.11","3.12","3.13","3.14"]'
+      verify_java:
+        description: Verify the Java artifact when Java packaging was selected.
+        type: boolean
+        default: true
 
 env:
   EXTENSIONS: parquet;httpfs;gds;pattern_matching;vector_search;fts
@@ -197,6 +201,8 @@ jobs:
   # Verify the platform-independent Java SDK JAR once in a separate Ubuntu environment.
   # ========================================
   java:
+    # Native-platform-only package runs do not produce a Java artifact.
+    if: inputs.verify_java
     name: Installed Java Artifact
     runs-on: ubuntu-22.04
     container: ubuntu:22.04
