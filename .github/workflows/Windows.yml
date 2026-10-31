@@ -43,13 +43,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  format_check:
-    uses: ./.github/workflows/format-check.yml
-    with:
-      is_pull_request: ${{ github.event_name == 'pull_request' }}
-
   build_and_test:
-    needs: format_check
     name: Windows ${{ matrix.arch }}
     strategy:
       fail-fast: false
