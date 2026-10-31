@@ -64,7 +64,14 @@ runs:
     run: |
       set -euo pipefail
       cd tools/nodejs_bind
-      node tests/test-shim.js
+      if [[ "$RUNNER_OS" == Linux && "$(id -u)" == 0 ]]; then
+        # Permission tests need an unprivileged user. The package container
+        # builds as root, including the dataset opened by read/write tests.
+        chown -R neug:neug /tmp/modern_graph
+        runuser -u neug -- "$(command -v node)" tests/test-shim.js
+      else
+        node tests/test-shim.js
+      fi
 
   - name: Install npm Packaging Dependency
     if: inputs.package == 'true' && runner.os != 'Windows'
