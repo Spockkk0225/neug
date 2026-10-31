@@ -171,7 +171,13 @@ runs:
         else
           if [ "$RUNNER_OS" = Windows ]; then
             cache=$(cygpath -u "$RUNNER_TOOL_CACHE")
-            py=$(find "$cache/Python/$version".* -type f -name python.exe -print -quit)
+            # Use setup-python's matching version/architecture installation.
+            # Avoid unrelated runner-provided Python executables and nested
+            # Lib/venv launcher templates, which require a pyvenv.cfg file.
+            py=$(find "$cache/Python/$version".* -maxdepth 2 -type f -path "*/${RUNNER_ARCH,,}/python.exe" -print -quit)
+            test -n "$py"
+            echo "Using Python $version ($RUNNER_ARCH): $py"
+            "$py" --version
           else
             py=$(find -L "$RUNNER_TOOL_CACHE/Python/$version".* -type f -name python3 -print -quit)
           fi
