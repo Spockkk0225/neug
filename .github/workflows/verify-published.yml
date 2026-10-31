@@ -45,7 +45,7 @@ jobs:
   verify:
     name: Published Packages / ${{ matrix.platform }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         platform: ${{ fromJSON(inputs.platforms == 'all' && '["linux-x86_64","linux-arm64","osx-arm64","windows-x86_64","windows-arm64"]' || format('["{0}"]', inputs.platforms)) }}
     container: ${{ startsWith(matrix.platform, 'linux-') && 'ubuntu:22.04' || '' }}
@@ -79,13 +79,19 @@ jobs:
           versions+=("$version")
         done
         test "${#versions[@]}" -gt 0
-        printf '%s\n' "${versions[@]}" > "$RUNNER_TEMP/.python-version"
+        # setup-python accepts multiple versions via its multiline input;
+        # python-version-file treats the entire file as one version string.
+        {
+          echo 'setup_versions<<EOF'
+          printf '%s\n' "${versions[@]}"
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"
         echo "versions=${versions[*]}" >> "$GITHUB_OUTPUT"
 
     - name: Setup Python Versions
       uses: actions/setup-python@v5
       with:
-        python-version-file: ${{ runner.temp }}/.python-version
+        python-version: ${{ steps.python_versions.outputs.setup_versions }}
 
     - name: Smoke Test Published Wheels and Extensions
       env:
