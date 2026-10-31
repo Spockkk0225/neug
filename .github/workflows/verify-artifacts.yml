@@ -136,15 +136,16 @@ jobs:
         os.environ['NEUG_EXTENSION_HOME_PYENV'] = str(site)
         import neug
         folder = Path(os.environ['GITHUB_WORKSPACE']) / 'extension-packages'
-        with neug.Database() as db:
-            conn = db.connect()
-            for name in os.environ['EXTENSIONS'].split(';'):
-                package = folder / f'lib{name}.neug_extension'
-                target = site / 'extension' / name
-                target.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(package, target / package.name)
-                conn.execute(f'LOAD EXTENSION {name}')
-            print(conn.execute('RETURN 1'))
+        db = neug.Database()
+        conn = db.connect()
+        for name in os.environ['EXTENSIONS'].split(';'):
+            package = folder / f'lib{name}.neug_extension'
+            target = site / 'extension' / name
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(package, target / package.name)
+            conn.execute(f'LOAD EXTENSION {name}')
+        print(conn.execute('RETURN 1'))
+        db.close()
         PYCODE
         done
 

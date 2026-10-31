@@ -119,12 +119,13 @@ jobs:
           "$py" - <<'PYCODE'
         import os
         import neug
-        with neug.Database() as db:
-            conn = db.connect()
-            for name in os.environ['EXTENSIONS'].split(';'):
-                conn.execute(f'INSTALL {name}')
-                conn.execute(f'LOAD EXTENSION {name}')
-            print(conn.execute('RETURN 1'))
+        db = neug.Database()
+        conn = db.connect()
+        for name in os.environ['EXTENSIONS'].split(';'):
+            conn.execute(f'INSTALL {name}')
+            conn.execute(f'LOAD EXTENSION {name}')
+        print(conn.execute('RETURN 1'))
+        db.close()
         PYCODE
         done
 
