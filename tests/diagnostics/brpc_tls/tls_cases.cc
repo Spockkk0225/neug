@@ -3,6 +3,7 @@
  */
 
 #include <bthread/bthread.h>
+#include <pthread.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -18,12 +19,27 @@ namespace brpc_tls_probe {
 // Match the test-only hook implicated by the NeuG backtrace. No task installs a
 // callback: observing a nonempty function is itself unexpected.
 thread_local std::function<void(bool)> retry_hook;
+pthread_key_t worker_hook_key;
 
 // Follow butil/thread_local.h's noinline + compiler-barrier access pattern.
 // A separate call obtains the current worker's address after each suspension.
 __attribute__((noinline)) std::function<void(bool)>* FreshHookAddress() {
   auto* pointer = &retry_hook;
   asm volatile("" : "+r"(pointer) : : "memory");
+  return pointer;
+}
+
+// This independent reference belongs to the current pthread. Look it up after
+// suspension; never retain it in the bthread across a scheduling point.
+__attribute__((noinline)) std::function<void(bool)>* WorkerHookAddress() {
+  auto* pointer = static_cast<std::function<void(bool)>*>(
+      pthread_getspecific(worker_hook_key));
+  if (pointer == nullptr) {
+    pointer = FreshHookAddress();
+    if (pthread_setspecific(worker_hook_key, pointer) != 0) {
+      return nullptr;
+    }
+  }
   return pointer;
 }
 
@@ -66,20 +82,26 @@ void* ExerciseTls(void* argument) {
       counters.migrations.fetch_add(1, std::memory_order_relaxed);
     }
 
-    auto* fresh = FreshHookAddress();
-    auto* observed = fresh;
-    if constexpr (!Fenced) {
+    auto* reference = WorkerHookAddress();
+    if (reference == nullptr) {
+      counters.wait_failures.fetch_add(1, std::memory_order_relaxed);
+      return nullptr;
+    }
+    std::function<void(bool)>* observed;
+    if constexpr (Fenced) {
+      observed = FreshHookAddress();
+    } else {
       observed = &retry_hook;
     }
-    if (observed != fresh) {
+    if (observed != reference) {
       const auto count =
           counters.mismatches.fetch_add(1, std::memory_order_relaxed);
       if (count < 8) {
         std::fprintf(stderr,
                      "TLS address mismatch: attempt=%d tid=%ld->%ld "
-                     "direct=%p fresh=%p\n",
+                     "observed=%p pthread_reference=%p\n",
                      attempt, before, after, static_cast<void*>(observed),
-                     static_cast<void*>(fresh));
+                     static_cast<void*>(reference));
       }
       return nullptr;
     }
@@ -100,6 +122,10 @@ extern "C" int RunBrpcTlsProbe(const char* mode) {
   }
   std::printf("mode=%s tasks=%d rounds=%d compiler=%s\n", mode, kTasks, kRounds,
               __VERSION__);
+  if (pthread_key_create(&worker_hook_key, nullptr) != 0) {
+    std::fprintf(stderr, "Failed to create worker reference key\n");
+    return 2;
+  }
   Counters counters;
   if (native) {
     std::vector<std::thread> threads;
