@@ -1,0 +1,228 @@
+name: ARM64 Insert Diagnostics
+
+on:
+  # Allows the first diagnostic run before this manual workflow is on main.
+  push:
+    branches:
+      - ci/arm64-insert-growth-diagnostics
+    paths:
+      - .github/workflows/arm64-insert-diagnostics.yml
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit or branch to diagnose (empty uses this workflow revision)'
+        type: string
+        default: ''
+      scenario:
+        description: 'Existing concurrency test to repeat'
+        type: choice
+        options:
+          - growth-reader
+          - string-keys
+          - full-file
+        default: growth-reader
+      repetitions:
+        description: 'Fresh pytest processes, stopping at the first failure (1-100)'
+        type: number
+        default: 10
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm64-insert-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: linux-arm64
+      python_versions: '3.13'
+
+  diagnose:
+    needs: ci-plan
+    name: Linux ARM64 / ${{ inputs.scenario || 'growth-reader' }}
+    runs-on: ${{ fromJSON(needs.ci-plan.outputs.plan).linux[0].build_runner }}
+    container:
+      image: ${{ fromJSON(needs.ci-plan.outputs.plan).dev_image }}
+      options: --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      LOG_DIR: ${{ github.workspace }}/arm64-insert-diagnostics
+
+    steps:
+      - name: Checkout target revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install diagnostic dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache gdb libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev unzip
+          mkdir -p "$LOG_DIR"
+
+      - name: Cache CCache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-${{ runner.arch }}-ccache-insert-diagnostics-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-ccache-insert-diagnostics-
+
+      - name: Setup CCache
+        run: |
+          mkdir -p ~/.cache/ccache
+          {
+            echo "CCACHE_DIR=$HOME/.cache/ccache"
+            echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE"
+            echo "CCACHE_COMPRESS=true"
+            echo "CCACHE_MAXSIZE=5G"
+          } >> "$GITHUB_ENV"
+          ccache --set-config=compiler_check=content
+          ccache --max-size=5G
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Build Release with native debug symbols
+        run: |
+          set -euo pipefail
+          for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
+            if [ -f "$env_file" ]; then
+              source "$env_file"
+              break
+            fi
+          done
+          export CI=ON
+          export BUILD_TYPE=RELEASE
+          export CMAKE_BUILD_PARALLEL_LEVEL=4
+          export BUILD_EXECUTABLES=OFF
+          export BUILD_HTTP_SERVER=ON
+          export BUILD_TEST=ON
+          export BUILD_EXTENSIONS=''
+          export USE_NINJA=OFF
+          export WITH_MIMALLOC=OFF
+          export CC=gcc
+          export CXX=g++
+          export CMAKE_C_COMPILER_LAUNCHER=ccache
+          export CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          # Keep Release optimization; retain source locations, locals and frames.
+          export CFLAGS='-g -fno-omit-frame-pointer'
+          export CXXFLAGS='-g -fno-omit-frame-pointer'
+          # pybind11 otherwise strips its Release module after linking.
+          export CMAKE_ARGS="${CMAKE_ARGS:-} -DCMAKE_STRIP=/bin/true"
+          cd tools/python_bind
+          make requirements
+          make build 2>&1 | tee "$LOG_DIR/build.log"
+          ccache --show-stats
+
+      - name: Repeat the selected test under GDB
+        timeout-minutes: 60
+        working-directory: tools/python_bind
+        env:
+          SCENARIO: ${{ inputs.scenario || 'growth-reader' }}
+          REPETITIONS: ${{ inputs.repetitions || 10 }}
+          PYTHONFAULTHANDLER: '1'
+          PYTHONUNBUFFERED: '1'
+          PYTEST_ADDOPTS: ''
+        run: |
+          set -euo pipefail
+          ulimit -n 65535
+          # Capture the live process instead of relying on the host core_pattern.
+          # A graph/WAL mapping can otherwise produce a multi-GiB core dump.
+          ulimit -c 0
+          if [[ ! "$REPETITIONS" =~ ^[0-9]+$ ]] || (( REPETITIONS < 1 || REPETITIONS > 100 )); then
+            echo 'repetitions must be an integer between 1 and 100' >&2
+            exit 1
+          fi
+          case "$SCENARIO" in
+            growth-reader) test_node='tests/test_db_concurrent.py::test_growth_waits_for_read_transaction' ;;
+            string-keys) test_node='tests/test_db_concurrent.py::test_concurrent_batches_with_string_primary_keys' ;;
+            full-file) test_node='tests/test_db_concurrent.py' ;;
+            *) echo "Unknown scenario: $SCENARIO" >&2; exit 1 ;;
+          esac
+          {
+            git rev-parse HEAD
+            uname -a
+            python --version
+            g++ --version
+            gdb --version
+            df -h .
+            grep -E 'CMAKE_BUILD_TYPE:|CMAKE_CXX_FLAGS:|BUILD_HTTP_SERVER:|BUILD_TEST:|WITH_MIMALLOC:' ../../build/CMakeCache.txt
+          } > "$LOG_DIR/environment.log" 2>&1
+          # The live frame/register/library information is captured for SIGSEGV,
+          # SIGABRT or an interrupt from the per-attempt timeout. Normal pytest
+          # failures preserve their own exit status and traceback.
+          cat > "$LOG_DIR/diagnose.gdb" <<'GDB'
+          set pagination off
+          set confirm off
+          set print elements 32
+          set print repeats 8
+          set backtrace limit 64
+          set debuginfod enabled off
+          handle SIGPIPE nostop noprint pass
+          handle SIGURG nostop noprint pass
+          handle SIGSEGV stop print nopass
+          handle SIGABRT stop print nopass
+          run
+          python
+          import gdb
+          if gdb.selected_inferior().pid:
+              for command in ["thread apply all bt full", "info registers", "info sharedlibrary", "info proc mappings"]:
+                  try:
+                      gdb.execute(command)
+                  except gdb.error as error:
+                      gdb.write(str(error) + "\n")
+              gdb.execute("quit 1")
+          else:
+              gdb.execute("quit %d" % int(gdb.parse_and_eval("$_exitcode")))
+          end
+          GDB
+          python -m pytest --collect-only -q "$test_node" > "$LOG_DIR/collection.log" 2>&1
+          for (( attempt=1; attempt<=REPETITIONS; attempt++ )); do
+            echo "Attempt $attempt/$REPETITIONS: $test_node"
+            set +e
+            timeout --signal=INT --kill-after=60s 10m \
+              gdb --batch -x "$LOG_DIR/diagnose.gdb" \
+              --args python -m pytest -sv --exitfirst \
+              -o faulthandler_timeout=120 \
+              --basetemp="$RUNNER_TEMP/insert-diagnostics-pytest" "$test_node" \
+              > "$LOG_DIR/attempt-$attempt.log" 2>&1
+            result=$?
+            set -e
+            tail -n 100 "$LOG_DIR/attempt-$attempt.log"
+            printf 'attempt=%s exit=%s\n' "$attempt" "$result" | tee -a "$LOG_DIR/results.log"
+            if (( result != 0 )); then
+              exit "$result"
+            fi
+          done
+
+      - name: Summarize diagnostics
+        if: always()
+        run: |
+          {
+            echo '## ARM64 insert diagnostics'
+            echo '```text'
+            if [ -f "$LOG_DIR/environment.log" ]; then head -n 8 "$LOG_DIR/environment.log"; fi
+            if [ -f "$LOG_DIR/results.log" ]; then cat "$LOG_DIR/results.log"; fi
+            echo '```'
+            echo 'Download the diagnostic artifact for per-attempt logs and native backtraces.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-insert-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.LOG_DIR }}
+          if-no-files-found: warn
+          retention-days: 7
