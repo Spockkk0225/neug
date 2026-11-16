@@ -1,0 +1,131 @@
+name: BRPC TLS Diagnostics
+
+on:
+  push:
+    branches:
+      - ci/arm64-insert-growth-diagnostics
+    paths:
+      - .github/workflows/brpc-tls-diagnostics.yml
+      - tests/diagnostics/brpc_tls/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: brpc-tls-diagnostics-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ci-plan:
+    uses: ./.github/workflows/ci-plan.yml
+    with:
+      platforms: linux-arm64
+      python_versions: '3.13'
+
+  probe:
+    needs: ci-plan
+    runs-on: ${{ fromJSON(needs.ci-plan.outputs.plan).linux[0].build_runner }}
+    container:
+      image: ${{ fromJSON(needs.ci-plan.outputs.plan).dev_image }}
+      options: --cap-add=SYS_PTRACE --security-opt seccomp=unconfined
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare logs and dependencies
+        run: |
+          diagnostic_dir="$GITHUB_WORKSPACE/brpc-tls-logs"
+          mkdir -p "$diagnostic_dir"
+          echo "LOG_DIR=$diagnostic_dir" >> "$GITHUB_ENV"
+          {
+            git rev-parse HEAD
+            git submodule status third_party/brpc
+            uname -a
+            g++ --version
+          } > "$diagnostic_dir/environment.log"
+          sudo apt-get update
+          sudo apt-get install -y cmake gdb libgflags-dev libleveldb-dev libprotobuf-dev libprotoc-dev protobuf-compiler libssl-dev zlib1g-dev
+
+      - name: Build the standalone BRPC probe
+        run: |
+          set -euo pipefail
+          cmake -S tests/diagnostics/brpc_tls -B brpc-tls-build \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ \
+            -DProtobuf_INCLUDE_DIR=/usr/include \
+            -DProtobuf_LIBRARY="/usr/lib/$(gcc -print-multiarch)/libprotobuf.so" \
+            -DProtobuf_PROTOC_EXECUTABLE=/usr/bin/protoc \
+            -DPROTOC_LIB="/usr/lib/$(gcc -print-multiarch)/libprotoc.so" \
+            2>&1 | tee "$LOG_DIR/configure.log"
+          cmake --build brpc-tls-build --target brpc_tls_probe -j4 \
+            2>&1 | tee "$LOG_DIR/build.log"
+          ldd brpc-tls-build/libbrpc_tls_cases.so > "$LOG_DIR/libraries.log"
+
+      - name: Run isolated controls and capture native faults
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          cat > "$LOG_DIR/probe.gdb" <<'GDB'
+          set pagination off
+          set confirm off
+          set print elements 32
+          set debuginfod enabled off
+          handle SIGPIPE nostop noprint pass
+          handle SIGURG nostop noprint pass
+          handle SIGSEGV stop print nopass
+          handle SIGABRT stop print nopass
+          run
+          python
+          import gdb
+          if gdb.selected_inferior().pid:
+              for command in ["p $_siginfo", "x/12i $pc-24", "thread apply all bt", "info registers", "info sharedlibrary", "info proc mappings"]:
+                  try:
+                      gdb.execute(command)
+                  except gdb.error as error:
+                      gdb.write(str(error) + "\n")
+              gdb.execute("quit 1")
+          else:
+              gdb.execute("quit %d" % int(gdb.parse_and_eval("$_exitcode")))
+          end
+          GDB
+          failed=0
+          for mode in pthread-control bthread-direct bthread-fenced; do
+            for attempt in 1 2 3; do
+              set +e
+              timeout --signal=INT --kill-after=30s 3m \
+                gdb --batch -x "$LOG_DIR/probe.gdb" \
+                --args "$GITHUB_WORKSPACE/brpc-tls-build/brpc_tls_probe" "$mode" \
+                > "$LOG_DIR/$mode-$attempt.log" 2>&1
+              result=$?
+              set -e
+              tail -n 40 "$LOG_DIR/$mode-$attempt.log"
+              printf '%s attempt=%s exit=%s\n' "$mode" "$attempt" "$result" | tee -a "$LOG_DIR/results.log"
+              if (( result != 0 )); then failed=1; fi
+            done
+          done
+          exit "$failed"
+
+      - name: Summarize probes
+        if: always()
+        run: |
+          {
+            echo '## BRPC-only TLS comparison'
+            echo '```text'
+            cat "$LOG_DIR/environment.log"
+            if [ -f "$LOG_DIR/results.log" ]; then cat "$LOG_DIR/results.log"; fi
+            echo '```'
+            echo 'Exit 0: no anomaly observed; exit 1: fault/mismatch; exit 2: invalid or inconclusive run.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brpc-tls-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.LOG_DIR }}
+          retention-days: 7
