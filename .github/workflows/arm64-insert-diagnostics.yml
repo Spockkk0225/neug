@@ -42,7 +42,7 @@ jobs:
 
   diagnose:
     needs: ci-plan
-    name: Linux ARM64 / ${{ inputs.scenario || 'growth-reader' }}
+    name: Linux ARM64 / ${{ inputs.scenario || 'full-file' }}
     runs-on: ${{ fromJSON(needs.ci-plan.outputs.plan).linux[0].build_runner }}
     container:
       image: ${{ fromJSON(needs.ci-plan.outputs.plan).dev_image }}
@@ -133,11 +133,18 @@ jobs:
           make build
           ccache --show-stats
 
+      - name: Verify existing retry failure injection tests
+        run: |
+          set -euo pipefail
+          build/tests/transaction/transaction_test \
+            --gtest_filter='InsertCapacity/InsertRetryFailureTest.FailureLeavesSlotUsable/*' \
+            2>&1 | tee "$LOG_DIR/retry-hooks.log"
+
       - name: Repeat the selected test under GDB
         timeout-minutes: 60
         working-directory: tools/python_bind
         env:
-          SCENARIO: ${{ inputs.scenario || 'growth-reader' }}
+          SCENARIO: ${{ inputs.scenario || 'full-file' }}
           REPETITIONS: ${{ inputs.repetitions || 10 }}
           PYTHONFAULTHANDLER: '1'
           PYTHONUNBUFFERED: '1'
@@ -185,7 +192,7 @@ jobs:
           python
           import gdb
           if gdb.selected_inferior().pid:
-              for command in ["thread apply all bt full", "info registers", "info sharedlibrary", "info proc mappings"]:
+              for command in ["p $_siginfo", "x/12i $pc-24", "thread apply all bt full", "info registers", "info sharedlibrary", "info proc mappings"]:
                   try:
                       gdb.execute(command)
                   except gdb.error as error:
@@ -212,6 +219,24 @@ jobs:
             if (( result != 0 )); then
               exit "$result"
             fi
+          done
+
+      - name: Run the original concurrency suite without GDB
+        timeout-minutes: 15
+        working-directory: tools/python_bind
+        env:
+          PYTHONFAULTHANDLER: '1'
+          PYTEST_ADDOPTS: ''
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          for attempt in 1 2 3; do
+            python -m pytest -sv --exitfirst \
+              -o faulthandler_timeout=120 \
+              --basetemp="$RUNNER_TEMP/insert-diagnostics-native" \
+              tests/test_db_concurrent.py \
+              > "$LOG_DIR/native-attempt-$attempt.log" 2>&1
+            tail -n 10 "$LOG_DIR/native-attempt-$attempt.log"
           done
 
       - name: Summarize diagnostics
