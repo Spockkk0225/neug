@@ -51,9 +51,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      LOG_DIR: ${{ github.workspace }}/arm64-insert-diagnostics
-
     steps:
       - name: Checkout target revision
         uses: actions/checkout@v4
@@ -61,6 +58,14 @@ jobs:
           ref: ${{ inputs.ref || github.sha }}
           submodules: recursive
           fetch-depth: 0
+
+      - name: Prepare diagnostic logs
+        run: |
+          # Resolve inside the container; job-level github.workspace is a host path.
+          diagnostic_dir="$GITHUB_WORKSPACE/arm64-insert-diagnostics"
+          mkdir -p "$diagnostic_dir"
+          echo "LOG_DIR=$diagnostic_dir" >> "$GITHUB_ENV"
+          git rev-parse HEAD > "$diagnostic_dir/revision.log"
 
       - name: Install diagnostic dependencies
         run: |
@@ -95,13 +100,16 @@ jobs:
 
       - name: Build Release with native debug symbols
         run: |
-          set -euo pipefail
+          set -eo pipefail
+          exec > >(tee "$LOG_DIR/build.log") 2>&1
+          # The image's environment script appends to optionally unset variables.
           for env_file in /home/neug/.neug_env ~/.neug_env /github/home/.neug_env; do
             if [ -f "$env_file" ]; then
               source "$env_file"
               break
             fi
           done
+          set -u
           export CI=ON
           export BUILD_TYPE=RELEASE
           export CMAKE_BUILD_PARALLEL_LEVEL=4
@@ -122,7 +130,7 @@ jobs:
           export CMAKE_ARGS="${CMAKE_ARGS:-} -DCMAKE_STRIP=/bin/true"
           cd tools/python_bind
           make requirements
-          make build 2>&1 | tee "$LOG_DIR/build.log"
+          make build
           ccache --show-stats
 
       - name: Repeat the selected test under GDB
